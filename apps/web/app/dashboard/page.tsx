@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Plus, MapPin, RefreshCw } from 'lucide-react'
+import { Plus, RefreshCw, Map, LayoutGrid } from 'lucide-react'
 import { getProjects, deleteProject } from '@/lib/store'
 import { Project } from '@/lib/types'
 import ProjectCard from '@/components/ProjectCard'
@@ -18,7 +18,6 @@ export default function DashboardPage() {
 
   useEffect(() => {
     load()
-    // Atualiza o status automaticamente a cada 3s (polling local)
     const interval = setInterval(load, 3000)
     return () => clearInterval(interval)
   }, [])
@@ -32,66 +31,76 @@ export default function DashboardPage() {
   const processing = projects.filter(
     (p) => p.status === 'uploading' || p.status === 'processing'
   )
+  const completed = projects.filter((p) => p.status === 'completed').length
+  const total = projects.length
 
   return (
-    <main className="min-h-screen bg-gray-50">
+    <main className="min-h-screen bg-slate-950">
       {/* Navbar */}
-      <nav className="bg-white border-b border-gray-100 px-4 py-3">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <Link href="/" className="text-xl font-bold text-green-600">Mapeia.AI</Link>
+      <nav className="glass border-b border-slate-800/60 px-4 py-3.5 sticky top-0 z-50">
+        <div className="max-w-5xl mx-auto flex items-center justify-between">
+          <Link href="/" className="text-brand font-bold text-xl tracking-tight cursor-pointer">Mapeia.AI</Link>
           <Link
             href="/upload"
-            className="flex items-center gap-1.5 bg-green-600 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+            className="flex items-center gap-1.5 bg-brand text-slate-900 text-sm font-semibold px-4 py-2 rounded-lg hover:bg-green-400 transition-colors cursor-pointer"
           >
             <Plus className="w-4 h-4" /> Novo mapa
           </Link>
         </div>
       </nav>
 
-      <div className="max-w-4xl mx-auto px-4 py-10">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+      <div className="max-w-5xl mx-auto px-4 py-10">
+        {/* Header + stats */}
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6 mb-8">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Meus mapas</h1>
-            <p className="text-gray-500 text-sm mt-0.5">
-              {projects.length === 0
-                ? 'Nenhum projeto ainda'
-                : `${projects.length} projeto${projects.length !== 1 ? 's' : ''}`}
-            </p>
+            <h1 className="text-2xl font-bold text-slate-50 mb-1">Meus mapas</h1>
+            <p className="text-slate-500 text-sm">{total === 0 ? 'Nenhum projeto ainda' : `${total} projeto${total !== 1 ? 's' : ''}`}</p>
           </div>
-          <button
-            onClick={load}
-            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-            title="Atualizar"
-          >
-            <RefreshCw className="w-4 h-4" />
-          </button>
+          {total > 0 && (
+            <div className="flex items-center gap-4">
+              {[
+                { label: 'Total',      value: total,     color: 'text-slate-200' },
+                { label: 'Concluídos', value: completed, color: 'text-brand'     },
+                { label: 'Em processo', value: processing.length, color: 'text-yellow-400' },
+              ].map(({ label, value, color }) => (
+                <div key={label} className="text-center">
+                  <p className={`text-2xl font-black ${color}`}>{value}</p>
+                  <p className="text-xs text-slate-600">{label}</p>
+                </div>
+              ))}
+              <button
+                onClick={load}
+                className="p-2 text-slate-600 hover:text-slate-300 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer ml-2"
+                title="Atualizar"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* Banner de projetos em processamento */}
+        {/* Banner de processamento */}
         {processing.length > 0 && (
-          <div className="flex items-center gap-3 bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-xl px-4 py-3 mb-6 text-sm">
-            <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse flex-shrink-0" />
-            {processing.length === 1
-              ? '1 projeto está sendo processado...'
-              : `${processing.length} projetos estão sendo processados...`}
-            <span className="text-yellow-600 ml-auto">Esta página atualiza automaticamente.</span>
+          <div className="flex items-center gap-3 glass border border-yellow-500/20 text-yellow-300 rounded-xl px-4 py-3 mb-6 text-sm">
+            <span className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse flex-shrink-0" />
+            {processing.length === 1 ? '1 projeto está sendo processado' : `${processing.length} projetos estão sendo processados`}
+            <span className="text-yellow-600 ml-auto hidden sm:block">Atualiza automaticamente</span>
           </div>
         )}
 
         {/* Estado vazio */}
-        {!loading && projects.length === 0 && (
-          <div className="text-center py-20">
-            <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <MapPin className="w-8 h-8 text-gray-300" />
+        {!loading && total === 0 && (
+          <div className="flex flex-col items-center justify-center py-24 text-center">
+            <div className="w-20 h-20 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center mb-6">
+              <Map className="w-10 h-10 text-slate-600" />
             </div>
-            <h2 className="font-bold text-gray-900 mb-1">Nenhum mapa ainda</h2>
-            <p className="text-gray-500 text-sm mb-6">
-              Envie as fotos do seu drone para criar seu primeiro mapa.
+            <h2 className="font-bold text-slate-100 text-xl mb-2">Nenhum mapa ainda</h2>
+            <p className="text-slate-500 text-sm mb-8 max-w-xs">
+              Envie fotos do seu drone para criar seu primeiro mapa ortomosaico.
             </p>
             <Link
               href="/upload"
-              className="inline-flex items-center gap-2 bg-green-600 text-white font-semibold px-6 py-3 rounded-xl hover:bg-green-700 transition-colors"
+              className="flex items-center gap-2 bg-brand text-slate-900 font-semibold px-6 py-3 rounded-xl hover:bg-green-400 transition-colors cursor-pointer"
             >
               <Plus className="w-4 h-4" /> Criar primeiro mapa
             </Link>
@@ -99,30 +108,32 @@ export default function DashboardPage() {
         )}
 
         {/* Grade de projetos */}
-        {projects.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {projects.map((project) => (
-              <ProjectCard
-                key={project.id}
-                project={project}
-                onDelete={handleDelete}
-              />
-            ))}
-          </div>
+        {total > 0 && (
+          <>
+            <div className="flex items-center gap-2 mb-4 text-xs text-slate-600">
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span>Projetos recentes</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {projects.map((project) => (
+                <ProjectCard key={project.id} project={project} onDelete={handleDelete} />
+              ))}
+            </div>
+          </>
         )}
 
         {/* CTA upgrade */}
-        {projects.length >= 3 && (
-          <div className="mt-10 bg-green-50 border border-green-200 rounded-2xl p-6 text-center">
-            <p className="font-semibold text-green-900 mb-1">
+        {total >= 3 && (
+          <div className="mt-10 glass rounded-2xl border border-brand/20 p-6 text-center">
+            <p className="font-bold text-slate-100 mb-1">
               Você usou seus 3 projetos gratuitos
             </p>
-            <p className="text-sm text-green-700 mb-4">
-              Faça upgrade para continuar gerando mapas ilimitados.
+            <p className="text-sm text-slate-400 mb-5">
+              Faça upgrade para continuar criando mapas sem limite.
             </p>
             <Link
               href="/#preco"
-              className="inline-block bg-green-600 text-white font-semibold px-6 py-2.5 rounded-xl hover:bg-green-700 transition-colors text-sm"
+              className="inline-block bg-brand text-slate-900 font-semibold px-6 py-2.5 rounded-xl hover:bg-green-400 transition-colors text-sm cursor-pointer"
             >
               Ver planos →
             </Link>
