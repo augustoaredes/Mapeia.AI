@@ -148,12 +148,13 @@ async function generateTiles(outputDir: string): Promise<void> {
 
   console.log('[ODM] Gerando tiles XYZ do ortomosaico...')
 
-  // Usa gdal2tiles via Docker (osgeo/gdal)
-  await execFileAsync('docker', [
+  // Usa o container do próprio ODM (já baixado) para rodar gdal2tiles
+  const { stdout, stderr } = await execFileAsync('docker', [
     'run', '--rm',
     '-v', `${outputDir}:/data`,
-    'osgeo/gdal',
-    'gdal2tiles.py',
+    '--entrypoint', 'python3',
+    'opendronemap/odm',
+    '/usr/bin/gdal2tiles.py',
     '--zoom=10-20',
     '--processes=4',
     '--tiledriver=PNG',
@@ -161,10 +162,27 @@ async function generateTiles(outputDir: string): Promise<void> {
     '/data/odm_orthophoto.tif',
     '/data/tiles',
   ], {
-    timeout: 30 * 60 * 1000, // 30 min
+    timeout:   30 * 60 * 1000,
     maxBuffer: 10 * 1024 * 1024,
+  }).catch(async (err: unknown) => {
+    // Fallback: tenta sem python3 explícito
+    const e = err as { message?: string }
+    console.warn('[ODM] Tentando gdal2tiles alternativo...', e.message)
+    return execFileAsync('docker', [
+      'run', '--rm',
+      '-v', `${outputDir}:/data`,
+      '--entrypoint', 'gdal2tiles.py',
+      'opendronemap/odm',
+      '--zoom=10-20',
+      '--processes=4',
+      '--webviewer=none',
+      '/data/odm_orthophoto.tif',
+      '/data/tiles',
+    ], { timeout: 30 * 60 * 1000, maxBuffer: 10 * 1024 * 1024 })
   })
 
+  if (stdout) console.log('[gdal2tiles]', stdout.slice(-500))
+  if (stderr) console.log('[gdal2tiles stderr]', stderr.slice(-500))
   console.log('[ODM] Tiles gerados com sucesso')
 }
 
