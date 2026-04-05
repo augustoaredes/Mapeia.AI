@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { Plus, RefreshCw, Map, LayoutGrid } from 'lucide-react'
-import { getProjects, deleteProject } from '@/lib/store'
+import { isApiAvailable, apiGetProjects, apiDeleteProject } from '@/lib/api'
+import { getProjects, deleteProject as deleteProjectLocal } from '@/lib/store'
 import { Project } from '@/lib/types'
 import ProjectCard from '@/components/ProjectCard'
 
@@ -11,20 +12,32 @@ export default function DashboardPage() {
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
 
-  function load() {
-    setProjects(getProjects())
-    setLoading(false)
-  }
+  const load = useCallback(async () => {
+    try {
+      const data = isApiAvailable()
+        ? await apiGetProjects()
+        : getProjects()
+      setProjects(data)
+    } catch {
+      setProjects(getProjects())
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
   useEffect(() => {
     load()
-    const interval = setInterval(load, 3000)
+    const interval = setInterval(load, 4000)
     return () => clearInterval(interval)
-  }, [])
+  }, [load])
 
-  function handleDelete(id: string) {
+  async function handleDelete(id: string) {
     if (!confirm('Excluir este projeto? Esta ação não pode ser desfeita.')) return
-    deleteProject(id)
+    if (isApiAvailable()) {
+      await apiDeleteProject(id)
+    } else {
+      deleteProjectLocal(id)
+    }
     load()
   }
 
@@ -36,7 +49,6 @@ export default function DashboardPage() {
 
   return (
     <main className="min-h-screen bg-slate-950">
-      {/* Navbar */}
       <nav className="glass border-b border-slate-800/60 px-4 py-3.5 sticky top-0 z-50">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <Link href="/" className="text-brand font-bold text-xl tracking-tight cursor-pointer">Mapeia.AI</Link>
@@ -54,14 +66,16 @@ export default function DashboardPage() {
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6 mb-8">
           <div>
             <h1 className="text-2xl font-bold text-slate-50 mb-1">Meus mapas</h1>
-            <p className="text-slate-500 text-sm">{total === 0 ? 'Nenhum projeto ainda' : `${total} projeto${total !== 1 ? 's' : ''}`}</p>
+            <p className="text-slate-500 text-sm">
+              {loading ? 'Carregando...' : total === 0 ? 'Nenhum projeto ainda' : `${total} projeto${total !== 1 ? 's' : ''}`}
+            </p>
           </div>
           {total > 0 && (
             <div className="flex items-center gap-4">
               {[
-                { label: 'Total',      value: total,     color: 'text-slate-200' },
-                { label: 'Concluídos', value: completed, color: 'text-brand'     },
-                { label: 'Em processo', value: processing.length, color: 'text-yellow-400' },
+                { label: 'Total',       value: total,               color: 'text-slate-200'  },
+                { label: 'Concluídos', value: completed,            color: 'text-brand'      },
+                { label: 'Processando', value: processing.length,   color: 'text-yellow-400' },
               ].map(({ label, value, color }) => (
                 <div key={label} className="text-center">
                   <p className={`text-2xl font-black ${color}`}>{value}</p>
@@ -79,7 +93,7 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* Banner de processamento */}
+        {/* Banner processando */}
         {processing.length > 0 && (
           <div className="flex items-center gap-3 glass border border-yellow-500/20 text-yellow-300 rounded-xl px-4 py-3 mb-6 text-sm">
             <span className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse flex-shrink-0" />
@@ -107,7 +121,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Grade de projetos */}
+        {/* Grade */}
         {total > 0 && (
           <>
             <div className="flex items-center gap-2 mb-4 text-xs text-slate-600">
@@ -125,12 +139,8 @@ export default function DashboardPage() {
         {/* CTA upgrade */}
         {total >= 3 && (
           <div className="mt-10 glass rounded-2xl border border-brand/20 p-6 text-center">
-            <p className="font-bold text-slate-100 mb-1">
-              Você usou seus 3 projetos gratuitos
-            </p>
-            <p className="text-sm text-slate-400 mb-5">
-              Faça upgrade para continuar criando mapas sem limite.
-            </p>
+            <p className="font-bold text-slate-100 mb-1">Você usou seus 3 projetos gratuitos</p>
+            <p className="text-sm text-slate-400 mb-5">Faça upgrade para continuar criando mapas sem limite.</p>
             <Link
               href="/#preco"
               className="inline-block bg-brand text-slate-900 font-semibold px-6 py-2.5 rounded-xl hover:bg-green-400 transition-colors text-sm cursor-pointer"

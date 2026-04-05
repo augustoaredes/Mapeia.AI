@@ -1,0 +1,40 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Project {
+  id         String   @id @default(uuid())
+  name       String
+  status     Status   @default(pending)
+  imageCount Int      @default(0) @map("image_count")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+  images     Image[]
+
+  @@map("projects")
+}
+
+model Image {
+  id        String   @id @default(uuid())
+  projectId String   @map("project_id")
+  filename  String
+  path      String
+  size      Int
+  createdAt DateTime @default(now()) @map("created_at")
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("images")
+}
+
+enum Status {
+  pending
+  uploading
+  processing
+  completed
+  failed
+}

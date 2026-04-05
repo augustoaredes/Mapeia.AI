@@ -5,9 +5,10 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import {
-  ChevronLeft, Download, ImageIcon, RefreshCw,
-  AlertCircle, Clock, CheckCircle2, Loader2,
+  ChevronLeft, Download, ImageIcon, AlertCircle,
+  Clock, CheckCircle2, Loader2,
 } from 'lucide-react'
+import { isApiAvailable, apiGetProject } from '@/lib/api'
 import { getProject } from '@/lib/store'
 import { Project } from '@/lib/types'
 import StatusBadge from '@/components/StatusBadge'
@@ -29,9 +30,9 @@ function formatDate(iso: string) {
 }
 
 const STATUS_INFO: Record<string, { title: string; desc: string }> = {
-  pending:    { title: 'Aguardando na fila',   desc: 'Seu projeto está na fila e será iniciado em breve.' },
-  uploading:  { title: 'Enviando fotos...',     desc: 'As fotos estão sendo transferidas para o servidor.' },
-  processing: { title: 'Gerando o mapa...',     desc: 'Estamos processando as imagens. Isso pode levar alguns minutos.' },
+  pending:    { title: 'Aguardando na fila',    desc: 'Seu projeto está na fila e será iniciado em breve.' },
+  uploading:  { title: 'Enviando fotos...',      desc: 'As fotos estão sendo transferidas para o servidor.' },
+  processing: { title: 'Gerando o mapa...',      desc: 'Estamos processando as imagens. Isso pode levar alguns minutos.' },
   failed:     { title: 'Falha no processamento', desc: 'Ocorreu um erro. Verifique a qualidade das imagens e tente novamente.' },
 }
 
@@ -41,16 +42,28 @@ export default function ProjectPage() {
   const [notFound, setNotFound] = useState(false)
 
   useEffect(() => {
-    const p = getProject(id)
-    if (!p) { setNotFound(true); return }
-    setProject(p)
+    async function fetchProject() {
+      const p = isApiAvailable()
+        ? await apiGetProject(id)
+        : getProject(id)
 
-    const interval = setInterval(() => {
-      const fresh = getProject(id)
+      if (!p) { setNotFound(true); return }
+      setProject(p)
+    }
+
+    fetchProject()
+
+    const interval = setInterval(async () => {
+      const fresh = isApiAvailable()
+        ? await apiGetProject(id)
+        : getProject(id)
       if (!fresh) return
       setProject({ ...fresh })
-      if (fresh.status === 'completed' || fresh.status === 'failed') clearInterval(interval)
-    }, 2000)
+      if (fresh.status === 'completed' || fresh.status === 'failed') {
+        clearInterval(interval)
+      }
+    }, 3000)
+
     return () => clearInterval(interval)
   }, [id])
 
@@ -70,12 +83,11 @@ export default function ProjectPage() {
   )
 
   const isCompleted = project.status === 'completed'
-  const isActive = project.status === 'uploading' || project.status === 'processing'
-  const info = STATUS_INFO[project.status]
+  const isActive    = project.status === 'uploading' || project.status === 'processing'
+  const info        = STATUS_INFO[project.status]
 
   return (
     <main className="min-h-screen bg-slate-950">
-      {/* Navbar */}
       <nav className="glass border-b border-slate-800/60 px-4 py-3.5 sticky top-0 z-50">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <Link href="/" className="text-brand font-bold text-xl tracking-tight cursor-pointer">Mapeia.AI</Link>
@@ -89,11 +101,11 @@ export default function ProjectPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-7">
           <div>
-            <div className="flex items-center gap-3 mb-1.5">
+            <div className="flex items-center gap-3 mb-1.5 flex-wrap">
               <h1 className="text-2xl font-bold text-slate-50 truncate">{project.name}</h1>
               <StatusBadge status={project.status} />
             </div>
-            <p className="text-sm text-slate-500 flex items-center gap-3">
+            <p className="text-sm text-slate-500 flex items-center gap-3 flex-wrap">
               <span className="flex items-center gap-1">
                 <ImageIcon className="w-3.5 h-3.5" /> {project.imageCount} fotos
               </span>
@@ -106,7 +118,8 @@ export default function ProjectPage() {
             <a
               href={project.downloadUrl}
               download
-              className="flex items-center gap-2 bg-brand text-slate-900 font-semibold px-5 py-2.5 rounded-xl hover:bg-green-400 transition-colors text-sm flex-shrink-0 cursor-pointer"
+              className="flex items-center gap-2 bg-brand text-slate-900 font-semibold px-5 py-2.5 rounded-xl
+                hover:bg-green-400 transition-colors text-sm flex-shrink-0 cursor-pointer"
             >
               <Download className="w-4 h-4" /> Baixar mapa (.zip)
             </a>
@@ -120,20 +133,20 @@ export default function ProjectPage() {
               <CheckCircle2 className="w-4 h-4 text-brand" />
               <span className="text-sm font-semibold text-slate-200">Mapa gerado com sucesso</span>
               <span className="text-xs text-slate-600 ml-auto hidden sm:block">
-                Visualização demonstrativa · ortomosaico disponível no download
+                Ortomosaico disponível no download
               </span>
             </div>
             <div className="p-4 h-[480px]">
+              {/* TODO (Fase 7): passar tilesUrl real do ODM */}
               <MapViewer zoom={13} />
             </div>
           </div>
         ) : (
-          /* Estado de progresso */
           <div className="glass rounded-2xl border border-slate-700/60 p-12 text-center mb-6">
             <div className="flex justify-center mb-5">
-              {project.status === 'pending' && <Clock className="w-12 h-12 text-slate-600" />}
-              {isActive && <Loader2 className="w-12 h-12 text-brand animate-spin" />}
-              {project.status === 'failed' && <AlertCircle className="w-12 h-12 text-red-400" />}
+              {project.status === 'pending'  && <Clock      className="w-12 h-12 text-slate-600" />}
+              {isActive                      && <Loader2    className="w-12 h-12 text-brand animate-spin" />}
+              {project.status === 'failed'   && <AlertCircle className="w-12 h-12 text-red-400" />}
             </div>
             <h2 className="font-bold text-slate-100 text-xl mb-2">{info?.title}</h2>
             <p className="text-slate-500 text-sm max-w-sm mx-auto">{info?.desc}</p>
@@ -143,14 +156,15 @@ export default function ProjectPage() {
                 <div className="w-full bg-slate-800 rounded-full h-1">
                   <div className="bg-brand h-1 rounded-full w-2/3 animate-pulse" />
                 </div>
-                <p className="text-xs text-slate-600 mt-2.5">Atualiza automaticamente a cada 2s</p>
+                <p className="text-xs text-slate-600 mt-2.5">Atualiza automaticamente</p>
               </div>
             )}
 
             {project.status === 'failed' && (
               <Link
                 href="/upload"
-                className="inline-flex items-center gap-2 mt-7 bg-brand text-slate-900 font-semibold px-6 py-3 rounded-xl hover:bg-green-400 transition-colors text-sm cursor-pointer"
+                className="inline-flex items-center gap-2 mt-7 bg-brand text-slate-900 font-semibold
+                  px-6 py-3 rounded-xl hover:bg-green-400 transition-colors text-sm cursor-pointer"
               >
                 Tentar novamente
               </Link>
