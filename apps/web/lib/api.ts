@@ -11,16 +11,22 @@ function isApiAvailable(): boolean {
   return API_URL.length > 0
 }
 
+function authHeaders(token?: string): Record<string, string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (token) headers['Authorization'] = `Bearer ${token}`
+  return headers
+}
+
 // ── Projetos ──
 
 export class FreeTierError extends Error {
   constructor() { super('Limite gratuito atingido'); this.name = 'FreeTierError' }
 }
 
-export async function apiCreateProject(name: string): Promise<Project> {
+export async function apiCreateProject(name: string, token?: string): Promise<Project> {
   const res = await fetch(`${API_URL}/api/projects`, {
     method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders(token),
     body:    JSON.stringify({ name }),
   })
   if (res.status === 402) throw new FreeTierError()
@@ -28,22 +34,29 @@ export async function apiCreateProject(name: string): Promise<Project> {
   return normalizeProject(await res.json())
 }
 
-export async function apiGetProjects(): Promise<Project[]> {
-  const res = await fetch(`${API_URL}/api/projects`)
+export async function apiGetProjects(token?: string): Promise<Project[]> {
+  const res = await fetch(`${API_URL}/api/projects`, {
+    headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+  })
   if (!res.ok) throw new Error('Erro ao carregar projetos')
   const data = await res.json()
   return data.map(normalizeProject)
 }
 
-export async function apiGetProject(id: string): Promise<Project | null> {
-  const res = await fetch(`${API_URL}/api/projects/${id}`)
+export async function apiGetProject(id: string, token?: string): Promise<Project | null> {
+  const res = await fetch(`${API_URL}/api/projects/${id}`, {
+    headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+  })
   if (res.status === 404) return null
   if (!res.ok) throw new Error('Erro ao carregar projeto')
   return normalizeProject(await res.json())
 }
 
-export async function apiDeleteProject(id: string): Promise<void> {
-  await fetch(`${API_URL}/api/projects/${id}`, { method: 'DELETE' })
+export async function apiDeleteProject(id: string, token?: string): Promise<void> {
+  await fetch(`${API_URL}/api/projects/${id}`, {
+    method: 'DELETE',
+    headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+  })
 }
 
 // ── Upload ──
@@ -51,7 +64,8 @@ export async function apiDeleteProject(id: string): Promise<void> {
 export async function apiUploadImages(
   projectId: string,
   files: File[],
-  onProgress?: (pct: number) => void
+  onProgress?: (pct: number) => void,
+  token?: string,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const form = new FormData()
@@ -59,6 +73,7 @@ export async function apiUploadImages(
 
     const xhr = new XMLHttpRequest()
     xhr.open('POST', `${API_URL}/api/projects/${projectId}/upload`)
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`)
 
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable && onProgress) {

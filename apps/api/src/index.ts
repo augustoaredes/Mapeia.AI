@@ -4,6 +4,7 @@ import cors from 'cors'
 import helmet from 'helmet'
 import path from 'path'
 
+import authRouter     from './routes/auth'
 import projectsRouter from './routes/projects'
 import uploadRouter   from './routes/upload'
 import billingRouter  from './routes/billing'
@@ -37,6 +38,7 @@ app.get('/health', (_req, res) => {
 })
 
 // ── Rotas ──
+app.use('/api/auth',     authRouter)
 app.use('/api/projects', projectsRouter)
 app.use('/api/projects', uploadRouter)
 app.use('/api/billing',  billingRouter)

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
+import { useSession } from 'next-auth/react'
 import {
   ChevronLeft, Download, ImageIcon, AlertCircle,
   Clock, CheckCircle2, Loader2,
@@ -38,13 +39,16 @@ const STATUS_INFO: Record<string, { title: string; desc: string }> = {
 
 export default function ProjectPage() {
   const { id } = useParams<{ id: string }>()
+  const { data: session } = useSession()
   const [project, setProject] = useState<Project | null>(null)
   const [notFound, setNotFound] = useState(false)
 
   useEffect(() => {
+    const token = session?.backendToken
+
     async function fetchProject() {
       const p = isApiAvailable()
-        ? await apiGetProject(id)
+        ? await apiGetProject(id, token)
         : getProject(id)
 
       if (!p) { setNotFound(true); return }
@@ -55,7 +59,7 @@ export default function ProjectPage() {
 
     const interval = setInterval(async () => {
       const fresh = isApiAvailable()
-        ? await apiGetProject(id)
+        ? await apiGetProject(id, token)
         : getProject(id)
       if (!fresh) return
       setProject({ ...fresh })
@@ -65,7 +69,7 @@ export default function ProjectPage() {
     }, 3000)
 
     return () => clearInterval(interval)
-  }, [id])
+  }, [id, session?.backendToken])
 
   if (notFound) return (
     <main className="min-h-screen bg-slate-950 flex flex-col items-center justify-center px-4 text-center">

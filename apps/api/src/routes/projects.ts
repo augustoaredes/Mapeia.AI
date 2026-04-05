@@ -4,10 +4,14 @@ import fs from 'fs'
 import { prisma } from '../lib/prisma'
 import { storage } from '../lib/storage'
 import { freeTierGuard } from '../middleware/freeTier'
+import { requireAuth, AuthRequest } from '../middleware/requireAuth'
 
 const router = Router()
 
-// POST /api/projects — criar projeto (bloqueado ao atingir limite grátis)
+// Todas as rotas exigem autenticação
+router.use(requireAuth)
+
+// POST /api/projects
 router.post('/', freeTierGuard, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { name } = req.body as { name?: string }
@@ -17,7 +21,7 @@ router.post('/', freeTierGuard, async (req: Request, res: Response, next: NextFu
     }
 
     const project = await prisma.project.create({
-      data: { name: name.trim() },
+      data: { name: name.trim(), userId: (req as AuthRequest).userId },
     })
 
     res.status(201).json(project)
@@ -26,10 +30,12 @@ router.post('/', freeTierGuard, async (req: Request, res: Response, next: NextFu
   }
 })
 
-// GET /api/projects — listar projetos
-router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
+// GET /api/projects
+router.get('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const userId = (req as AuthRequest).userId
     const projects = await prisma.project.findMany({
+      where:   { userId },
       orderBy: { createdAt: 'desc' },
       include: { _count: { select: { images: true } } },
     })
@@ -39,11 +45,11 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
   }
 })
 
-// GET /api/projects/:id — detalhe do projeto
+// GET /api/projects/:id
 router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const project = await prisma.project.findUnique({
-      where: { id: req.params.id },
+    const project = await prisma.project.findFirst({
+      where:   { id: req.params.id, userId: (req as AuthRequest).userId },
       include: { images: true },
     })
 
@@ -51,14 +57,13 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
       res.status(404).json({ error: 'Projeto não encontrado' })
       return
     }
-
     res.json(project)
   } catch (err) {
     next(err)
   }
 })
 
-// PATCH /api/projects/:id/status — atualizar status (usado pelo worker)
+// PATCH /api/projects/:id/status
 router.patch('/:id/status', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { status } = req.body as { status?: string }
@@ -69,23 +74,28 @@ router.patch('/:id/status', async (req: Request, res: Response, next: NextFuncti
       return
     }
 
-    const project = await prisma.project.update({
-      where: { id: req.params.id },
+    const project = await prisma.project.updateMany({
+      where: { id: req.params.id, userId: (req as AuthRequest).userId },
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      data: { status: status as any },
+      data:  { status: status as any },
     })
 
-    res.json(project)
+    if (project.count === 0) {
+      res.status(404).json({ error: 'Projeto não encontrado' })
+      return
+    }
+
+    res.json({ updated: true })
   } catch (err) {
     next(err)
   }
 })
 
-// GET /api/projects/:id/download — download do resultado em .zip
+// GET /api/projects/:id/download
 router.get('/:id/download', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const project = await prisma.project.findUnique({
-      where: { id: req.params.id },
+    const project = await prisma.project.findFirst({
+      where: { id: req.params.id, userId: (req as AuthRequest).userId },
     })
 
     if (!project) {
@@ -99,7 +109,6 @@ router.get('/:id/download', async (req: Request, res: Response, next: NextFuncti
     }
 
     const outputDir = storage.outputsDir(project.id)
-
     if (!fs.existsSync(outputDir)) {
       res.status(404).json({ error: 'Arquivos de saída não encontrados' })
       return
@@ -119,10 +128,17 @@ router.get('/:id/download', async (req: Request, res: Response, next: NextFuncti
   }
 })
 
-// DELETE /api/projects/:id — excluir projeto
+// DELETE /api/projects/:id
 router.delete('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    await prisma.project.delete({ where: { id: req.params.id } })
+    const deleted = await prisma.project.deleteMany({
+      where: { id: req.params.id, userId: (req as AuthRequest).userId },
+    })
+
+    if (deleted.count === 0) {
+      res.status(404).json({ error: 'Projeto não encontrado' })
+      return
+    }
     res.status(204).end()
   } catch (err) {
     next(err)

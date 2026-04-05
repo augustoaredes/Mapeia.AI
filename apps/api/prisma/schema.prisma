@@ -7,13 +7,27 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id        String    @id @default(uuid())
+  email     String    @unique
+  name      String
+  password  String
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt     @map("updated_at")
+  projects  Project[]
+
+  @@map("users")
+}
+
 model Project {
   id         String   @id @default(uuid())
   name       String
   status     Status   @default(pending)
   imageCount Int      @default(0) @map("image_count")
+  userId     String   @map("user_id")
   createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  updatedAt  DateTime @updatedAt     @map("updated_at")
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   images     Image[]
 
   @@map("projects")

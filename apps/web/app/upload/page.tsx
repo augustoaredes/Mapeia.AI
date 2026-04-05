@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { useSession } from 'next-auth/react'
 import {
   UploadCloud, X, ImageIcon, ArrowRight, Loader2, ChevronLeft, Check,
 } from 'lucide-react'
@@ -17,12 +18,13 @@ type Step = 'idle' | 'uploading' | 'done'
 
 export default function UploadPage() {
   const router = useRouter()
-  const [files, setFiles]           = useState<File[]>([])
+  const { data: session } = useSession()
+  const [files, setFiles]             = useState<File[]>([])
   const [projectName, setProjectName] = useState('')
-  const [step, setStep]             = useState<Step>('idle')
-  const [progress, setProgress]     = useState(0)
-  const [agreed, setAgreed]         = useState(false)
-  const [error, setError]           = useState<string | null>(null)
+  const [step, setStep]               = useState<Step>('idle')
+  const [progress, setProgress]       = useState(0)
+  const [agreed, setAgreed]           = useState(false)
+  const [error, setError]             = useState<string | null>(null)
 
   const onDrop = useCallback((accepted: File[]) => {
     setFiles((prev) => [...prev, ...accepted].slice(0, MAX_FILES))
@@ -44,11 +46,13 @@ export default function UploadPage() {
     setStep('uploading')
     setProgress(0)
 
+    const token = session?.backendToken
+
     try {
       if (isApiAvailable()) {
         // ── Fluxo real (API + PostgreSQL) ──
-        const project = await apiCreateProject(projectName.trim())
-        await apiUploadImages(project.id, files, (pct) => setProgress(pct))
+        const project = await apiCreateProject(projectName.trim(), token)
+        await apiUploadImages(project.id, files, (pct) => setProgress(pct), token)
         setStep('done')
         await new Promise((r) => setTimeout(r, 600))
         router.push('/dashboard')
@@ -56,7 +60,6 @@ export default function UploadPage() {
         // ── Fallback localStorage (sem backend) ──
         const project = createProject(projectName.trim(), files.length)
         simulateProcessing(project.id)
-        // Simula progresso
         for (let p = 0; p <= 100; p += 20) {
           setProgress(p)
           await new Promise((r) => setTimeout(r, 150))

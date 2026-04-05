@@ -2,20 +2,22 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
-import { Plus, RefreshCw, Map, LayoutGrid } from 'lucide-react'
+import { Plus, RefreshCw, Map, LayoutGrid, LogOut } from 'lucide-react'
+import { useSession, signOut } from 'next-auth/react'
 import { isApiAvailable, apiGetProjects, apiDeleteProject } from '@/lib/api'
 import { getProjects, deleteProject as deleteProjectLocal } from '@/lib/store'
 import { Project } from '@/lib/types'
 import ProjectCard from '@/components/ProjectCard'
 
 export default function DashboardPage() {
+  const { data: session } = useSession()
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
     try {
       const data = isApiAvailable()
-        ? await apiGetProjects()
+        ? await apiGetProjects(session?.backendToken)
         : getProjects()
       setProjects(data)
     } catch {
@@ -23,7 +25,7 @@ export default function DashboardPage() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [session?.backendToken])
 
   useEffect(() => {
     load()
@@ -34,7 +36,7 @@ export default function DashboardPage() {
   async function handleDelete(id: string) {
     if (!confirm('Excluir este projeto? Esta ação não pode ser desfeita.')) return
     if (isApiAvailable()) {
-      await apiDeleteProject(id)
+      await apiDeleteProject(id, session?.backendToken)
     } else {
       deleteProjectLocal(id)
     }
@@ -52,12 +54,25 @@ export default function DashboardPage() {
       <nav className="glass border-b border-slate-800/60 px-4 py-3.5 sticky top-0 z-50">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <Link href="/" className="text-brand font-bold text-xl tracking-tight cursor-pointer">Mapeia.AI</Link>
-          <Link
-            href="/upload"
-            className="flex items-center gap-1.5 bg-brand text-slate-900 text-sm font-semibold px-4 py-2 rounded-lg hover:bg-green-400 transition-colors cursor-pointer"
-          >
-            <Plus className="w-4 h-4" /> Novo mapa
-          </Link>
+          <div className="flex items-center gap-3">
+            {session?.user?.name && (
+              <span className="text-sm text-slate-400 hidden sm:block">{session.user.name}</span>
+            )}
+            <button
+              onClick={() => signOut({ callbackUrl: '/' })}
+              className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-200 transition-colors cursor-pointer"
+              title="Sair"
+            >
+              <LogOut className="w-4 h-4" />
+              <span className="hidden sm:inline">Sair</span>
+            </button>
+            <Link
+              href="/upload"
+              className="flex items-center gap-1.5 bg-brand text-slate-900 text-sm font-semibold px-4 py-2 rounded-lg hover:bg-green-400 transition-colors cursor-pointer"
+            >
+              <Plus className="w-4 h-4" /> Novo mapa
+            </Link>
+          </div>
         </div>
       </nav>
 

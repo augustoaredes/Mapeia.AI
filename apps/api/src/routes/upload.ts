@@ -4,8 +4,10 @@ import path from 'path'
 import { prisma } from '../lib/prisma'
 import { storage } from '../lib/storage'
 import { processingQueue } from '../lib/queue'
+import { requireAuth, AuthRequest } from '../middleware/requireAuth'
 
 const router = Router()
+router.use(requireAuth)
 
 const upload = multer({
   storage: multer.diskStorage({
@@ -37,7 +39,9 @@ router.post(
   upload.array('images', 1000),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const project = await prisma.project.findUnique({ where: { id: req.params.id } })
+      const project = await prisma.project.findFirst({
+        where: { id: req.params.id, userId: (req as AuthRequest).userId },
+      })
 
       if (!project) {
         res.status(404).json({ error: 'Projeto não encontrado' })
