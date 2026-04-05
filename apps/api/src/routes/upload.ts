@@ -3,10 +3,10 @@ import multer from 'multer'
 import path from 'path'
 import { prisma } from '../lib/prisma'
 import { storage } from '../lib/storage'
+import { processingQueue } from '../lib/queue'
 
 const router = Router()
 
-// Configuração do multer — salva em disco, organizado por project_id
 const upload = multer({
   storage: multer.diskStorage({
     destination: (req, _file, cb) => {
@@ -14,7 +14,7 @@ const upload = multer({
       cb(null, dir)
     },
     filename: (_req, file, cb) => {
-      const ext = path.extname(file.originalname)
+      const ext  = path.extname(file.originalname)
       const base = path.basename(file.originalname, ext)
         .replace(/[^a-z0-9]/gi, '_')
         .toLowerCase()
@@ -22,28 +22,22 @@ const upload = multer({
     },
   }),
   fileFilter: (_req, file, cb) => {
-    const allowed = ['image/jpeg', 'image/png']
-    if (allowed.includes(file.mimetype)) {
+    if (['image/jpeg', 'image/png'].includes(file.mimetype)) {
       cb(null, true)
     } else {
       cb(new Error('Apenas imagens JPG e PNG são aceitas'))
     }
   },
-  limits: {
-    fileSize: 50 * 1024 * 1024, // 50 MB por arquivo
-    files: 1000,
-  },
+  limits: { fileSize: 50 * 1024 * 1024, files: 1000 },
 })
 
-// POST /api/projects/:id/upload — enviar imagens para um projeto
+// POST /api/projects/:id/upload
 router.post(
   '/:id/upload',
   upload.array('images', 1000),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const project = await prisma.project.findUnique({
-        where: { id: req.params.id },
-      })
+      const project = await prisma.project.findUnique({ where: { id: req.params.id } })
 
       if (!project) {
         res.status(404).json({ error: 'Projeto não encontrado' })
@@ -51,13 +45,12 @@ router.post(
       }
 
       const files = req.files as Express.Multer.File[]
-
-      if (!files || files.length === 0) {
+      if (!files?.length) {
         res.status(400).json({ error: 'Nenhuma imagem enviada' })
         return
       }
 
-      // Persiste cada imagem no banco
+      // Persiste as imagens no banco
       await prisma.image.createMany({
         data: files.map((f) => ({
           projectId: project.id,
@@ -67,23 +60,27 @@ router.post(
         })),
       })
 
-      // Atualiza contagem e status do projeto
-      const imageCount = await prisma.image.count({
-        where: { projectId: project.id },
-      })
+      const imageCount = await prisma.image.count({ where: { projectId: project.id } })
 
       const updated = await prisma.project.update({
         where: { id: project.id },
         data:  { imageCount, status: 'uploading' },
       })
 
-      // TODO (Fase 5): disparar job na fila BullMQ aqui
-      // await processingQueue.add('process', { projectId: project.id })
+      // Dispara o job de processamento na fila BullMQ
+      const job = await processingQueue.add(
+        'process',
+        { projectId: project.id },
+        { jobId: project.id } // idempotente: evita duplicatas
+      )
+
+      console.log(`[Upload] Job ${job.id} adicionado à fila para projeto ${project.id}`)
 
       res.status(201).json({
         project: updated,
         uploaded: files.length,
-        total: imageCount,
+        total:    imageCount,
+        jobId:    job.id,
       })
     } catch (err) {
       next(err)
