@@ -83,9 +83,9 @@ async function runODMDocker(
   inputDir: string,
   outputDir: string,
 ): Promise<void> {
-  // ODM precisa de: /datasets/project/images/*.jpg
+  // ODM espera: /datasets/code/images/*.jpg  (nome fixo "code")
   const odmWorkDir   = path.join(outputDir, 'odm_workdir')
-  const odmImagesDir = path.join(odmWorkDir, 'project', 'images')
+  const odmImagesDir = path.join(odmWorkDir, 'code', 'images')
   fs.mkdirSync(odmImagesDir, { recursive: true })
 
   // Copia as imagens para dentro do volume (Docker não segue symlinks do host)
@@ -121,8 +121,8 @@ async function runODMDocker(
     throw new Error(`ODM falhou: ${e.message}`)
   }
 
-  // O ortomosaico gerado pelo ODM
-  const orthoPath = path.join(odmWorkDir, 'project', 'odm_orthophoto', 'odm_orthophoto.tif')
+  // O ortomosaico gerado pelo ODM fica em code/odm_orthophoto/
+  const orthoPath = path.join(odmWorkDir, 'code', 'odm_orthophoto', 'odm_orthophoto.tif')
 
   if (!fs.existsSync(orthoPath)) {
     throw new Error('ODM concluiu mas ortomosaico não encontrado')
