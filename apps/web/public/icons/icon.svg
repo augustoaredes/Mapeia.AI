@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <!-- Background -->
+  <rect width="512" height="512" rx="96" fill="#0f172a"/>
+
+  <!-- Grid pattern (faint) -->
+  <line x1="128" y1="0" x2="128" y2="512" stroke="#1e293b" stroke-width="1"/>
+  <line x1="256" y1="0" x2="256" y2="512" stroke="#1e293b" stroke-width="1"/>
+  <line x1="384" y1="0" x2="384" y2="512" stroke="#1e293b" stroke-width="1"/>
+  <line x1="0" y1="128" x2="512" y2="128" stroke="#1e293b" stroke-width="1"/>
+  <line x1="0" y1="256" x2="512" y2="256" stroke="#1e293b" stroke-width="1"/>
+  <line x1="0" y1="384" x2="512" y2="384" stroke="#1e293b" stroke-width="1"/>
+
+  <!-- Map pin shape -->
+  <path d="M256 96C204.4 96 162 138.4 162 190C162 241.6 256 400 256 400C256 400 350 241.6 350 190C350 138.4 307.6 96 256 96Z"
+        fill="#22c55e"/>
+
+  <!-- Pin inner circle -->
+  <circle cx="256" cy="190" r="36" fill="#0f172a"/>
+  <circle cx="256" cy="190" r="20" fill="#22c55e"/>
+
+  <!-- AI dot indicator -->
+  <circle cx="340" cy="340" r="44" fill="#1e293b"/>
+  <circle cx="340" cy="340" r="32" fill="#22c55e" opacity="0.2"/>
+  <circle cx="340" cy="340" r="12" fill="#22c55e"/>
+</svg>

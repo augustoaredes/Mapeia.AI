@@ -1,23 +1,36 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import Link from 'next/link'
+import PwaRegister from '@/components/PwaRegister'
 
 export const metadata: Metadata = {
   title: 'Mapeia.AI — Transforme fotos de drone em mapa',
   description:
     'Envie suas fotos de drone e receba um mapa profissional em minutos. Sem instalar nada. Sem complicação.',
   keywords: 'mapa drone, ortomosaico, fotogrametria, mapas aéreos, SaaS',
-  openGraph: {
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
     title: 'Mapeia.AI',
+  },
+  icons: {
+    icon:  [{ url: '/icons/icon.svg', type: 'image/svg+xml' }],
+    apple: [{ url: '/icons/icon.svg', type: 'image/svg+xml' }],
+  },
+  openGraph: {
+    title:       'Mapeia.AI',
     description: 'Transforme fotos de drone em mapa em minutos',
-    type: 'website',
+    type:        'website',
   },
 }
 
 export const viewport: Viewport = {
-  width: 'device-width',
-  initialScale: 1,
-  themeColor: '#0f172a',
+  width:            'device-width',
+  initialScale:     1,
+  maximumScale:     1,
+  themeColor:       '#0f172a',
+  colorScheme:      'dark',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -38,6 +51,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </nav>
           </div>
         </footer>
+
+        {/* PWA: registro do service worker + banner de instalação */}
+        <PwaRegister />
       </body>
     </html>
   )
