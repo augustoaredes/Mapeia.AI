@@ -142,27 +142,40 @@ async function runODMDocker(
 }
 
 async function generateTiles(outputDir: string): Promise<void> {
-  const tilesDir = path.join(outputDir, 'tiles')
+  const tilesDir  = path.join(outputDir, 'tiles')
+  const orthoPath = path.join(outputDir, 'odm_orthophoto.tif')
   fs.mkdirSync(tilesDir, { recursive: true })
 
   console.log('[ODM] Gerando tiles XYZ do ortomosaico...')
 
-  // Usa o container do ODM (já disponível) via bash para encontrar gdal2tiles no PATH
-  const { stdout, stderr } = await execFileAsync('docker', [
-    'run', '--rm',
-    '-v', `${outputDir}:/data`,
-    '--entrypoint', 'bash',
-    'opendronemap/odm',
-    '-c',
-    'gdal2tiles.py --zoom=10-20 --processes=4 --webviewer=none /data/odm_orthophoto.tif /data/tiles',
-  ], {
-    timeout:   30 * 60 * 1000,
-    maxBuffer: 10 * 1024 * 1024,
-  })
+  // Tenta gdal2tiles.py localmente (brew install gdal / apt install gdal-bin)
+  const candidates = ['gdal2tiles.py', 'gdal2tiles']
+  let success = false
 
-  if (stdout) console.log('[gdal2tiles]', stdout.slice(-500))
-  if (stderr) console.log('[gdal2tiles stderr]', stderr.slice(-500))
-  console.log('[ODM] Tiles gerados com sucesso')
+  for (const cmd of candidates) {
+    try {
+      const { stderr } = await execFileAsync(cmd, [
+        `--zoom=10-20`,
+        '--processes=4',
+        '--webviewer=none',
+        orthoPath,
+        tilesDir,
+      ], { timeout: 30 * 60 * 1000, maxBuffer: 10 * 1024 * 1024 })
+      if (stderr) console.log('[gdal2tiles]', stderr.slice(-300))
+      console.log('[ODM] Tiles gerados com sucesso via', cmd)
+      success = true
+      break
+    } catch {
+      // tenta próximo candidato
+    }
+  }
+
+  if (!success) {
+    console.warn('[ODM] gdal2tiles não encontrado — tiles não gerados.')
+    console.warn('[ODM] Para habilitar: instale GDAL (Mac: brew install gdal | Linux: apt install gdal-bin)')
+    // Remove diretório vazio para tilesUrl ficar null
+    fs.rmdirSync(tilesDir)
+  }
 }
 
 // ── Simulação ───────────────────────────────────────────────────────────────
