@@ -111,7 +111,8 @@ function normalizeProject(raw: Record<string, unknown>): Project {
     downloadUrl: raw.status === 'completed'
       ? `${API_URL}/api/projects/${raw.id}/download`
       : undefined,
-    tilesUrl:    (raw.tilesUrl as string | null) ?? undefined,
+    // tilesUrl vem como path relativo (/api/...) — prefixamos com API_URL do backend
+    tilesUrl: raw.tilesUrl ? `${API_URL}${raw.tilesUrl as string}` : undefined,
   }
 }
 

@@ -7,8 +7,7 @@ import { storage } from '../lib/storage'
 import { freeTierGuard } from '../middleware/freeTier'
 import { requireAuth, AuthRequest } from '../middleware/requireAuth'
 
-const API_URL = process.env.API_URL ?? ''
-
+// tilesUrl usa apenas o path — o frontend prefixa com NEXT_PUBLIC_API_URL
 function projectWithTilesUrl(project: Record<string, unknown>) {
   const outputDir = storage.outputsDir(project.id as string)
   const tilesDir  = path.join(outputDir, 'tiles')
@@ -16,14 +15,34 @@ function projectWithTilesUrl(project: Record<string, unknown>) {
   return {
     ...project,
     tilesUrl: hasTiles
-      ? `${API_URL}/api/projects/${project.id}/tiles/{z}/{x}/{y}.png`
+      ? `/api/projects/${project.id}/tiles/{z}/{x}/{y}.png`
       : null,
   }
 }
 
 const router = Router()
 
-// Todas as rotas exigem autenticação
+// ── Rota pública: tiles do ortomosaico (Leaflet não suporta headers) ────────
+// Segurança por obscuridade: project ID é UUID aleatório
+router.get('/:id/tiles/:z/:x/:y', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id, z, x, y } = req.params
+    const tilePath = path.join(storage.outputsDir(id), 'tiles', z, x, y)
+
+    if (!fs.existsSync(tilePath)) {
+      res.status(204).end()
+      return
+    }
+
+    res.setHeader('Content-Type', 'image/png')
+    res.setHeader('Cache-Control', 'public, max-age=86400')
+    fs.createReadStream(tilePath).pipe(res)
+  } catch (err) {
+    next(err)
+  }
+})
+
+// Todas as rotas abaixo exigem autenticação
 router.use(requireAuth)
 
 // POST /api/projects
@@ -73,31 +92,6 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
       return
     }
     res.json(projectWithTilesUrl(project as unknown as Record<string, unknown>))
-  } catch (err) {
-    next(err)
-  }
-})
-
-// GET /api/projects/:id/tiles/:z/:x/:y
-router.get('/:id/tiles/:z/:x/:y', async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const project = await prisma.project.findFirst({
-      where: { id: req.params.id, userId: (req as AuthRequest).userId },
-    })
-
-    if (!project) { res.status(404).end(); return }
-
-    const { z, x, y } = req.params
-    const tilePath = path.join(
-      storage.outputsDir(project.id),
-      'tiles', z, x, `${y}`,
-    )
-
-    if (!fs.existsSync(tilePath)) { res.status(204).end(); return }
-
-    res.setHeader('Content-Type', 'image/png')
-    res.setHeader('Cache-Control', 'public, max-age=86400')
-    fs.createReadStream(tilePath).pipe(res)
   } catch (err) {
     next(err)
   }
