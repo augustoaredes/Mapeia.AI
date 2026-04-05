@@ -24,45 +24,59 @@ export default function MapViewer({
   const mapRef = useRef<unknown>(null)
 
   useEffect(() => {
-    if (!containerRef.current || mapRef.current) return
+    if (!containerRef.current) return
+
+    // Garante que o container não foi inicializado pelo Leaflet (StrictMode monta 2x)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const container = containerRef.current as any
+    if (container._leaflet_id) {
+      container._leaflet_id = null
+    }
+    if (mapRef.current) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ;(mapRef.current as any).remove()
+      mapRef.current = null
+    }
+
+    // Injeta CSS do Leaflet uma única vez
+    if (!document.getElementById('leaflet-css')) {
+      const link = document.createElement('link')
+      link.id   = 'leaflet-css'
+      link.rel  = 'stylesheet'
+      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
+      document.head.appendChild(link)
+    }
 
     // Importa Leaflet dinamicamente (somente no cliente)
     import('leaflet').then((L) => {
+      if (!containerRef.current) return
+
       // Corrige ícones padrão do Leaflet com Next.js
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       delete (L.Icon.Default.prototype as any)._getIconUrl
       L.Icon.Default.mergeOptions({
         iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-        iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+        iconUrl:       'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+        shadowUrl:     'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
       })
 
-      const map = L.map(containerRef.current!, { zoomControl: true }).setView(center, zoom)
+      const map = L.map(containerRef.current, { zoomControl: true }).setView(center, zoom)
 
-      // Mapa base OpenStreetMap
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         maxZoom: 22,
       }).addTo(map)
 
-      // Camada do ortomosaico (quando disponível)
       if (tilesUrl) {
         L.tileLayer(tilesUrl, {
           attribution: 'Processado por Mapeia.AI',
           maxZoom: 22,
-          tms: false,
           opacity: 1,
         }).addTo(map)
       }
 
       mapRef.current = map
     })
-
-    // Importa CSS do Leaflet
-    const link = document.createElement('link')
-    link.rel = 'stylesheet'
-    link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
-    document.head.appendChild(link)
 
     return () => {
       if (mapRef.current) {
