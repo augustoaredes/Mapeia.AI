@@ -102,15 +102,16 @@ export async function apiUploadImages(
 
 function normalizeProject(raw: Record<string, unknown>): Project {
   return {
-    id:           raw.id as string,
-    name:         raw.name as string,
-    status:       raw.status as Project['status'],
-    imageCount:   (raw.imageCount ?? raw.image_count ?? raw._count?.images ?? 0) as number,
-    createdAt:    raw.createdAt as string ?? raw.created_at as string,
-    updatedAt:    raw.updatedAt as string ?? raw.updated_at as string,
-    downloadUrl:  raw.status === 'completed'
+    id:          raw.id as string,
+    name:        raw.name as string,
+    status:      raw.status as Project['status'],
+    imageCount:  (raw.imageCount ?? raw.image_count ?? (raw._count as Record<string, unknown>)?.images ?? 0) as number,
+    createdAt:   (raw.createdAt ?? raw.created_at) as string,
+    updatedAt:   (raw.updatedAt ?? raw.updated_at) as string,
+    downloadUrl: raw.status === 'completed'
       ? `${API_URL}/api/projects/${raw.id}/download`
       : undefined,
+    tilesUrl:    (raw.tilesUrl as string | null) ?? undefined,
   }
 }
 

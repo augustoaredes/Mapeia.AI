@@ -141,8 +141,10 @@ export default function ProjectPage() {
               </span>
             </div>
             <div className="p-4 h-[480px]">
-              {/* TODO (Fase 7): passar tilesUrl real do ODM */}
-              <MapViewer zoom={13} />
+              <MapViewer
+                tilesUrl={project.tilesUrl}
+                zoom={project.tilesUrl ? 15 : 13}
+              />
             </div>
           </div>
         ) : (

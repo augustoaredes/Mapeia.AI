@@ -1,15 +1,20 @@
 import fs from 'fs'
 import path from 'path'
+import { execFile, execSync } from 'child_process'
+import { promisify } from 'util'
 import { prisma } from '../lib/prisma'
 import { storage } from '../lib/storage'
+
+const execFileAsync = promisify(execFile)
 
 /**
  * runODM — orquestra o processamento fotogramétrico de um projeto.
  *
- * FASE 1 (atual): simulado — gera arquivos de saída fake após delay.
- * FASE 2 (futura): integração real com OpenDroneMap via Docker.
- *   Créditos: OpenDroneMap (https://opendronemap.org) — GPL-3.0
- *   O Mapeia.AI não é afiliado ao projeto OpenDroneMap.
+ * Quando Docker está disponível: usa OpenDroneMap real + gdal2tiles.
+ * Caso contrário: simulação com arquivos placeholder.
+ *
+ * Créditos: OpenDroneMap (https://opendronemap.org) — GPL-3.0
+ * O Mapeia.AI não é afiliado ao projeto OpenDroneMap.
  */
 export async function runODM(projectId: string): Promise<void> {
   console.log(`[ODM] Iniciando processamento do projeto ${projectId}`)
@@ -23,7 +28,6 @@ export async function runODM(projectId: string): Promise<void> {
     const inputDir  = storage.uploadsDir(projectId)
     const outputDir = storage.ensureOutputsDir(projectId)
 
-    // Verifica se há imagens para processar
     const images = fs.existsSync(inputDir)
       ? fs.readdirSync(inputDir).filter((f) => /\.(jpg|jpeg|png)$/i.test(f))
       : []
@@ -34,11 +38,15 @@ export async function runODM(projectId: string): Promise<void> {
       throw new Error(`Mínimo de 3 imagens necessário (encontradas: ${images.length})`)
     }
 
-    // ── FASE 1: Processamento simulado ──
-    await simulateODMProcessing(projectId, outputDir, images.length)
+    const dockerAvailable = isDockerAvailable()
 
-    // ── FASE 2 (TODO): Processamento real com Docker ODM ──
-    // await runODMDocker(projectId, inputDir, outputDir)
+    if (dockerAvailable) {
+      console.log('[ODM] Docker disponível — usando OpenDroneMap real')
+      await runODMDocker(projectId, inputDir, outputDir)
+    } else {
+      console.log('[ODM] Docker não disponível — usando processamento simulado')
+      await simulateODMProcessing(projectId, outputDir, images.length)
+    }
 
     await prisma.project.update({
       where: { id: projectId },
@@ -59,37 +67,115 @@ export async function runODM(projectId: string): Promise<void> {
   }
 }
 
-/**
- * Simula o processamento do ODM.
- * Gera arquivos de saída placeholder para teste da UX completa.
- */
+// ── Docker ODM ──────────────────────────────────────────────────────────────
+
+function isDockerAvailable(): boolean {
+  try {
+    execSync('docker info', { stdio: 'pipe', timeout: 5000 })
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function runODMDocker(
+  projectId: string,
+  inputDir: string,
+  outputDir: string,
+): Promise<void> {
+  // ODM precisa de um diretório "project" com subpasta "images"
+  const odmWorkDir = path.join(outputDir, 'odm_workdir')
+  const odmImagesDir = path.join(odmWorkDir, 'project', 'images')
+  fs.mkdirSync(odmImagesDir, { recursive: true })
+
+  // Cria symlinks das imagens (evita cópia desnecessária)
+  const images = fs.readdirSync(inputDir).filter((f) => /\.(jpg|jpeg|png)$/i.test(f))
+  for (const img of images) {
+    const src = path.join(inputDir, img)
+    const dst = path.join(odmImagesDir, img)
+    if (!fs.existsSync(dst)) fs.symlinkSync(src, dst)
+  }
+
+  console.log('[ODM] Executando OpenDroneMap (isso pode levar vários minutos)...')
+
+  // Executa ODM via Docker
+  await execFileAsync('docker', [
+    'run', '--rm',
+    '-v', `${odmWorkDir}:/datasets`,
+    'opendronemap/odm',
+    '--project-path', '/datasets',
+    '--orthophoto-resolution', '5',
+    '--fast-orthophoto',
+    '--skip-3dmodel',
+    '--skip-report',
+    '--min-num-features', '4000',
+    '--verbose',
+  ], {
+    timeout: 2 * 60 * 60 * 1000, // 2 horas
+    maxBuffer: 50 * 1024 * 1024,
+  })
+
+  // O ortomosaico gerado pelo ODM
+  const orthoPath = path.join(odmWorkDir, 'project', 'odm_orthophoto', 'odm_orthophoto.tif')
+
+  if (!fs.existsSync(orthoPath)) {
+    throw new Error('ODM concluiu mas ortomosaico não encontrado')
+  }
+
+  // Copia ortomosaico para o outputDir
+  fs.copyFileSync(orthoPath, path.join(outputDir, 'odm_orthophoto.tif'))
+
+  // Gera tiles XYZ para visualização no Leaflet
+  await generateTiles(outputDir)
+
+  // Salva manifest
+  writeManifest(outputDir, projectId, images.length, true)
+
+  // Limpa diretório de trabalho do ODM (pesado)
+  fs.rmSync(odmWorkDir, { recursive: true, force: true })
+}
+
+async function generateTiles(outputDir: string): Promise<void> {
+  const orthoPath = path.join(outputDir, 'odm_orthophoto.tif')
+  const tilesDir  = path.join(outputDir, 'tiles')
+  fs.mkdirSync(tilesDir, { recursive: true })
+
+  console.log('[ODM] Gerando tiles XYZ do ortomosaico...')
+
+  // Usa gdal2tiles via Docker (osgeo/gdal)
+  await execFileAsync('docker', [
+    'run', '--rm',
+    '-v', `${outputDir}:/data`,
+    'osgeo/gdal',
+    'gdal2tiles.py',
+    '--zoom=10-20',
+    '--processes=4',
+    '--tiledriver=PNG',
+    '--webviewer=none',
+    '/data/odm_orthophoto.tif',
+    '/data/tiles',
+  ], {
+    timeout: 30 * 60 * 1000, // 30 min
+    maxBuffer: 10 * 1024 * 1024,
+  })
+
+  console.log('[ODM] Tiles gerados com sucesso')
+}
+
+// ── Simulação ───────────────────────────────────────────────────────────────
+
 async function simulateODMProcessing(
   projectId: string,
   outputDir: string,
-  imageCount: number
+  imageCount: number,
 ): Promise<void> {
-  // Tempo de processamento simulado: ~2s por imagem, mínimo 10s, máximo 60s
   const delayMs = Math.min(Math.max(imageCount * 2000, 10_000), 60_000)
   console.log(`[ODM] Simulando ${(delayMs / 1000).toFixed(0)}s de processamento...`)
 
   await sleep(delayMs)
 
-  // Gera arquivos de saída fake
-  const manifest = {
-    project_id:   projectId,
-    generated_at: new Date().toISOString(),
-    image_count:  imageCount,
-    engine:       'OpenDroneMap (simulado)',
-    note:         'Este é um arquivo de demonstração. O ortomosaico real será gerado pelo ODM.',
-    files: ['odm_orthophoto.tif', 'odm_dem.tif', 'odm_report.pdf'],
-  }
+  writeManifest(outputDir, projectId, imageCount, false)
 
-  fs.writeFileSync(
-    path.join(outputDir, 'manifest.json'),
-    JSON.stringify(manifest, null, 2)
-  )
-
-  // Placeholder para o ortomosaico (arquivo de texto simulando um GeoTIFF)
   fs.writeFileSync(
     path.join(outputDir, 'odm_orthophoto_placeholder.txt'),
     [
@@ -99,55 +185,33 @@ async function simulateODMProcessing(
       '# Arquivo real: disponível após integração com OpenDroneMap',
       '#',
       '# Créditos: OpenDroneMap (https://opendronemap.org) — GPL-3.0',
-    ].join('\n')
-  )
-
-  fs.writeFileSync(
-    path.join(outputDir, 'README.txt'),
-    [
-      'Mapeia.AI — Resultado do processamento',
-      '======================================',
-      '',
-      `Projeto: ${projectId}`,
-      `Imagens: ${imageCount}`,
-      `Data: ${new Date().toLocaleString('pt-BR')}`,
-      '',
-      'Arquivos neste pacote:',
-      '  manifest.json              — metadados do processamento',
-      '  odm_orthophoto_placeholder.txt — placeholder do ortomosaico',
-      '',
-      'Nota: Esta é uma versão de demonstração.',
-      'A integração com OpenDroneMap (ODM) será ativada na Fase 6.',
-      '',
-      'OpenDroneMap: https://opendronemap.org (GPL-3.0)',
-    ].join('\n')
+    ].join('\n'),
   )
 
   console.log(`[ODM] Arquivos de saída gerados em ${outputDir}`)
 }
 
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+function writeManifest(
+  outputDir: string,
+  projectId: string,
+  imageCount: number,
+  real: boolean,
+): void {
+  const tilesDir = path.join(outputDir, 'tiles')
+  fs.writeFileSync(
+    path.join(outputDir, 'manifest.json'),
+    JSON.stringify({
+      project_id:   projectId,
+      generated_at: new Date().toISOString(),
+      image_count:  imageCount,
+      engine:       real ? 'OpenDroneMap' : 'OpenDroneMap (simulado)',
+      has_tiles:    fs.existsSync(tilesDir),
+    }, null, 2),
+  )
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
-
-/*
- * ── FASE 2 (futura): integração Docker ODM ──
- *
- * async function runODMDocker(projectId: string, inputDir: string, outputDir: string) {
- *   const { execFile } = await import('child_process')
- *   const { promisify } = await import('util')
- *   const exec = promisify(execFile)
- *
- *   await exec('docker', [
- *     'run', '--rm',
- *     '-v', `${inputDir}:/datasets/code/images`,
- *     '-v', `${outputDir}:/datasets/code/odm_orthophoto`,
- *     'opendronemap/odm',
- *     '--project-path', '/datasets',
- *     '--orthophoto-resolution', '5',
- *   ])
- * }
- *
- * Créditos: OpenDroneMap — https://opendronemap.org (GPL-3.0)
- * O Mapeia.AI não é afiliado ao projeto OpenDroneMap.
- */

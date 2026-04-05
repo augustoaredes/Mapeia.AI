@@ -13,5 +13,6 @@ export interface Project {
   createdAt: string
   updatedAt: string
   downloadUrl?: string
+  tilesUrl?: string
   errorMessage?: string
 }
