@@ -5,7 +5,8 @@ import helmet from 'helmet'
 import path from 'path'
 
 import projectsRouter from './routes/projects'
-import uploadRouter from './routes/upload'
+import uploadRouter   from './routes/upload'
+import billingRouter  from './routes/billing'
 import { errorHandler, notFound } from './middleware/error'
 
 const app  = express()
@@ -15,10 +16,16 @@ const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:3000'
 // ── Segurança ──
 app.use(helmet())
 app.use(cors({
-  origin: FRONTEND_URL,
-  methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+  origin:       FRONTEND_URL,
+  methods:      ['GET', 'POST', 'PATCH', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }))
+
+// ── Stripe Webhook: raw body ANTES do json() ──
+app.use(
+  '/api/billing/webhook',
+  express.raw({ type: 'application/json' })
+)
 
 // ── Body parsing ──
 app.use(express.json({ limit: '1mb' }))
@@ -32,8 +39,9 @@ app.get('/health', (_req, res) => {
 // ── Rotas ──
 app.use('/api/projects', projectsRouter)
 app.use('/api/projects', uploadRouter)
+app.use('/api/billing',  billingRouter)
 
-// ── Servir outputs estáticos (para tiles do mapa futuramente) ──
+// ── Outputs estáticos (tiles do mapa futuramente) ──
 const storagePath = path.resolve(process.env.STORAGE_BASE_PATH ?? './storage')
 app.use('/outputs', express.static(path.join(storagePath, 'outputs')))
 
@@ -42,9 +50,9 @@ app.use(notFound)
 app.use(errorHandler)
 
 app.listen(PORT, () => {
-  console.log(`\n🗺  Mapeia.AI API`)
-  console.log(`   → http://localhost:${PORT}`)
-  console.log(`   → health: http://localhost:${PORT}/health\n`)
+  console.log(`\n  Mapeia.AI API`)
+  console.log(`   -> http://localhost:${PORT}`)
+  console.log(`   -> health: http://localhost:${PORT}/health\n`)
 })
 
 export default app

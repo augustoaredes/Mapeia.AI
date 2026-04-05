@@ -13,12 +13,17 @@ function isApiAvailable(): boolean {
 
 // ── Projetos ──
 
+export class FreeTierError extends Error {
+  constructor() { super('Limite gratuito atingido'); this.name = 'FreeTierError' }
+}
+
 export async function apiCreateProject(name: string): Promise<Project> {
   const res = await fetch(`${API_URL}/api/projects`, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify({ name }),
   })
+  if (res.status === 402) throw new FreeTierError()
   if (!res.ok) throw new Error((await res.json()).error ?? 'Erro ao criar projeto')
   return normalizeProject(await res.json())
 }

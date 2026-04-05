@@ -3,11 +3,12 @@ import archiver from 'archiver'
 import fs from 'fs'
 import { prisma } from '../lib/prisma'
 import { storage } from '../lib/storage'
+import { freeTierGuard } from '../middleware/freeTier'
 
 const router = Router()
 
-// POST /api/projects — criar projeto
-router.post('/', async (req: Request, res: Response, next: NextFunction) => {
+// POST /api/projects — criar projeto (bloqueado ao atingir limite grátis)
+router.post('/', freeTierGuard, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { name } = req.body as { name?: string }
     if (!name?.trim()) {

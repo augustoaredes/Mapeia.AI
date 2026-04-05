@@ -7,7 +7,7 @@ import Link from 'next/link'
 import {
   UploadCloud, X, ImageIcon, ArrowRight, Loader2, ChevronLeft, Check,
 } from 'lucide-react'
-import { isApiAvailable, apiCreateProject, apiUploadImages } from '@/lib/api'
+import { isApiAvailable, apiCreateProject, apiUploadImages, FreeTierError } from '@/lib/api'
 import { createProject, simulateProcessing } from '@/lib/store'
 
 const MAX_FILES = 1000
@@ -66,6 +66,10 @@ export default function UploadPage() {
         router.push('/dashboard')
       }
     } catch (err) {
+      if (err instanceof FreeTierError) {
+        router.push('/upgrade')
+        return
+      }
       setError(err instanceof Error ? err.message : 'Erro ao enviar. Tente novamente.')
       setStep('idle')
       setProgress(0)
