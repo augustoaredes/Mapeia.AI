@@ -83,37 +83,43 @@ async function runODMDocker(
   inputDir: string,
   outputDir: string,
 ): Promise<void> {
-  // ODM precisa de um diretório "project" com subpasta "images"
-  const odmWorkDir = path.join(outputDir, 'odm_workdir')
+  // ODM precisa de: /datasets/project/images/*.jpg
+  const odmWorkDir   = path.join(outputDir, 'odm_workdir')
   const odmImagesDir = path.join(odmWorkDir, 'project', 'images')
   fs.mkdirSync(odmImagesDir, { recursive: true })
 
-  // Cria symlinks das imagens (evita cópia desnecessária)
+  // Copia as imagens para dentro do volume (Docker não segue symlinks do host)
   const images = fs.readdirSync(inputDir).filter((f) => /\.(jpg|jpeg|png)$/i.test(f))
+  console.log(`[ODM] Copiando ${images.length} imagens para o volume Docker...`)
   for (const img of images) {
-    const src = path.join(inputDir, img)
-    const dst = path.join(odmImagesDir, img)
-    if (!fs.existsSync(dst)) fs.symlinkSync(src, dst)
+    fs.copyFileSync(path.join(inputDir, img), path.join(odmImagesDir, img))
   }
 
   console.log('[ODM] Executando OpenDroneMap (isso pode levar vários minutos)...')
 
-  // Executa ODM via Docker
-  await execFileAsync('docker', [
-    'run', '--rm',
-    '-v', `${odmWorkDir}:/datasets`,
-    'opendronemap/odm',
-    '--project-path', '/datasets',
-    '--orthophoto-resolution', '5',
-    '--fast-orthophoto',
-    '--skip-3dmodel',
-    '--skip-report',
-    '--min-num-features', '4000',
-    '--verbose',
-  ], {
-    timeout: 2 * 60 * 60 * 1000, // 2 horas
-    maxBuffer: 50 * 1024 * 1024,
-  })
+  try {
+    const { stdout, stderr } = await execFileAsync('docker', [
+      'run', '--rm',
+      '-v', `${odmWorkDir}:/datasets`,
+      'opendronemap/odm',
+      '--project-path', '/datasets',
+      '--orthophoto-resolution', '5',
+      '--fast-orthophoto',
+      '--skip-3dmodel',
+      '--skip-report',
+      '--min-num-features', '4000',
+    ], {
+      timeout:   2 * 60 * 60 * 1000, // 2 horas
+      maxBuffer: 100 * 1024 * 1024,
+    })
+    if (stdout) console.log('[ODM stdout]', stdout.slice(-2000))
+    if (stderr) console.log('[ODM stderr]', stderr.slice(-2000))
+  } catch (err: unknown) {
+    const e = err as { stdout?: string; stderr?: string; message?: string }
+    console.error('[ODM] stdout:', e.stdout?.slice(-3000))
+    console.error('[ODM] stderr:', e.stderr?.slice(-3000))
+    throw new Error(`ODM falhou: ${e.message}`)
+  }
 
   // O ortomosaico gerado pelo ODM
   const orthoPath = path.join(odmWorkDir, 'project', 'odm_orthophoto', 'odm_orthophoto.tif')
@@ -122,7 +128,7 @@ async function runODMDocker(
     throw new Error('ODM concluiu mas ortomosaico não encontrado')
   }
 
-  // Copia ortomosaico para o outputDir
+  // Copia ortomosaico para o outputDir raiz
   fs.copyFileSync(orthoPath, path.join(outputDir, 'odm_orthophoto.tif'))
 
   // Gera tiles XYZ para visualização no Leaflet
@@ -131,7 +137,7 @@ async function runODMDocker(
   // Salva manifest
   writeManifest(outputDir, projectId, images.length, true)
 
-  // Limpa diretório de trabalho do ODM (pesado)
+  // Limpa diretório de trabalho pesado do ODM
   fs.rmSync(odmWorkDir, { recursive: true, force: true })
 }
 
