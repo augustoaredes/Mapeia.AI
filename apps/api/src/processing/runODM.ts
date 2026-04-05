@@ -148,33 +148,67 @@ async function generateTiles(outputDir: string): Promise<void> {
 
   console.log('[ODM] Gerando tiles XYZ do ortomosaico...')
 
-  // Tenta gdal2tiles.py localmente (brew install gdal / apt install gdal-bin)
-  const candidates = ['gdal2tiles.py', 'gdal2tiles']
-  let success = false
+  // Estratégias em ordem de preferência
+  const strategies: Array<{ label: string; cmd: string; args: string[] }> = [
+    // Docker ODM via conda (mais confiável — usa o GDAL do próprio ODM)
+    {
+      label: 'docker-odm-conda',
+      cmd: 'docker',
+      args: [
+        'run', '--rm',
+        '-v', `${outputDir}:/data`,
+        '--entrypoint', 'bash',
+        'opendronemap/odm',
+        '-c',
+        'export PATH=/opt/conda/bin:/usr/local/bin:$PATH && gdal2tiles --zoom=10-20 --processes=4 --webviewer=none /data/odm_orthophoto.tif /data/tiles',
+      ],
+    },
+    // Python 3.12 (compatível com GDAL no Mac)
+    {
+      label: 'python3.12',
+      cmd: 'python3.12',
+      args: ['/opt/homebrew/bin/gdal2tiles.py', '--zoom=10-20', '--processes=4', '--webviewer=none', orthoPath, tilesDir],
+    },
+    // Python 3.11
+    {
+      label: 'python3.11',
+      cmd: 'python3.11',
+      args: ['/opt/homebrew/bin/gdal2tiles.py', '--zoom=10-20', '--processes=4', '--webviewer=none', orthoPath, tilesDir],
+    },
+    // gdal2tiles direto (Linux / Railway)
+    {
+      label: 'gdal2tiles',
+      cmd: 'gdal2tiles',
+      args: ['--zoom=10-20', '--processes=4', '--webviewer=none', orthoPath, tilesDir],
+    },
+    // gdal2tiles.py (Linux com gdal-bin)
+    {
+      label: 'gdal2tiles.py',
+      cmd: 'gdal2tiles.py',
+      args: ['--zoom=10-20', '--processes=4', '--webviewer=none', orthoPath, tilesDir],
+    },
+  ]
 
-  for (const cmd of candidates) {
+  for (const s of strategies) {
     try {
-      const { stderr } = await execFileAsync(cmd, [
-        `--zoom=10-20`,
-        '--processes=4',
-        '--webviewer=none',
-        orthoPath,
-        tilesDir,
-      ], { timeout: 30 * 60 * 1000, maxBuffer: 10 * 1024 * 1024 })
-      if (stderr) console.log('[gdal2tiles]', stderr.slice(-300))
-      console.log('[ODM] Tiles gerados com sucesso via', cmd)
-      success = true
-      break
-    } catch {
-      // tenta próximo candidato
+      console.log(`[ODM] Tentando tiles via ${s.label}...`)
+      await execFileAsync(s.cmd, s.args, {
+        timeout:   30 * 60 * 1000,
+        maxBuffer: 10 * 1024 * 1024,
+      })
+      console.log(`[ODM] Tiles gerados com sucesso via ${s.label}`)
+      return
+    } catch (err) {
+      const msg = (err as Error).message?.split('\n')[0] ?? ''
+      console.warn(`[ODM] ${s.label} falhou: ${msg}`)
     }
   }
 
-  if (!success) {
-    console.warn('[ODM] gdal2tiles não encontrado — tiles não gerados.')
-    console.warn('[ODM] Para habilitar: instale GDAL (Mac: brew install gdal | Linux: apt install gdal-bin)')
-    // Remove diretório vazio para tilesUrl ficar null
-    fs.rmdirSync(tilesDir)
+  // Nenhuma estratégia funcionou — projeto conclui sem tiles
+  console.warn('[ODM] Tiles não gerados. O projeto será marcado como concluído sem visualização do ortomosaico.')
+  console.warn('[ODM] Para habilitar: Mac → brew install gdal | Linux → apt install gdal-bin')
+  if (fs.existsSync(tilesDir)) {
+    fs.rmdirSync(tilesDir, { recursive: true } as unknown as fs.RmDirOptions)
   }
 }
 
