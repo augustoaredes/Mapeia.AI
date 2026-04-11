@@ -332,7 +332,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
       orderBy: { createdAt: 'desc' },
       include: { _count: { select: { images: true } } },
     })
-    res.json(projects.map((p) => projectWithTilesUrl(p as unknown as Record<string, unknown>)))
+    res.json(projects.map((p: unknown) => projectWithTilesUrl(p as Record<string, unknown>)))
   } catch (err) {
     next(err)
   }

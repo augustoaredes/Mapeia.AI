@@ -62,7 +62,7 @@ router.get('/:id/shares', requireAuth, async (req: Request, res: Response, next:
     })
 
     const baseUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000'
-    res.json(shares.map(s => ({
+    res.json(shares.map((s: any) => ({
       ...s,
       url:     `${baseUrl}/s/${s.token}`,
       expired: s.expiresAt ? s.expiresAt < new Date() : false,

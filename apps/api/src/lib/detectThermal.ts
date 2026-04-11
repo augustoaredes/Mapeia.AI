@@ -53,8 +53,8 @@ export async function detectThermal(
       const buf  = fs.readFileSync(imgPath)
       const tags = ExifReader.load(buf, { expanded: true })
 
-      const make  = (tags.exif?.Make?.description  ?? tags.Makernote?.Make?.description  ?? '').toLowerCase()
-      const model = (tags.exif?.Model?.description ?? tags.Makernote?.Model?.description ?? '').toLowerCase()
+      const make  = (tags.exif?.Make?.description  ?? (tags as any).makerNotes?.Make?.description  ?? '').toLowerCase()
+      const model = (tags.exif?.Model?.description ?? (tags as any).makerNotes?.Model?.description ?? '').toLowerCase()
 
       // Detecta pelo fabricante
       const matchedMake = THERMAL_MAKES.find(m => make.includes(m))
