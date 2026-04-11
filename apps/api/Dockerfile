@@ -1,9 +1,9 @@
 FROM node:20-alpine AS builder
 
 WORKDIR /app
-COPY package*.json ./
+COPY apps/api/package*.json ./
 RUN npm ci --include=dev
-COPY . .
+COPY apps/api/ .
 RUN npm run build
 RUN npx prisma generate
 
@@ -15,13 +15,13 @@ RUN apk add --no-cache docker-cli curl
 
 WORKDIR /app
 
-COPY package*.json ./
+COPY apps/api/package*.json ./
 RUN npm ci --omit=dev
 
 # Prisma client + schema
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
-COPY prisma ./prisma
+COPY apps/api/prisma ./prisma
 
 # Build compilado
 COPY --from=builder /app/dist ./dist
