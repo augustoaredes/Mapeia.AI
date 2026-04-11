@@ -38,17 +38,19 @@ export async function apiGetProjects(token?: string): Promise<Project[]> {
   const res = await fetch(`${API_URL}/api/projects`, {
     headers: token ? { 'Authorization': `Bearer ${token}` } : {},
   })
-  if (!res.ok) throw new Error('Erro ao carregar projetos')
+  if (!res.ok) return []
   const data = await res.json()
   return data.map(normalizeProject)
 }
 
-export async function apiGetProject(id: string, token?: string): Promise<Project | null> {
+export const PROJECT_NOT_FOUND = 'NOT_FOUND' as const
+
+export async function apiGetProject(id: string, token?: string): Promise<Project | null | typeof PROJECT_NOT_FOUND> {
   const res = await fetch(`${API_URL}/api/projects/${id}`, {
     headers: token ? { 'Authorization': `Bearer ${token}` } : {},
   })
-  if (res.status === 404) return null
-  if (!res.ok) throw new Error('Erro ao carregar projeto')
+  if (res.status === 404) return PROJECT_NOT_FOUND
+  if (!res.ok) return null  // 401, 500, etc — ignora silenciosamente
   return normalizeProject(await res.json())
 }
 
@@ -57,6 +59,14 @@ export async function apiDeleteProject(id: string, token?: string): Promise<void
     method: 'DELETE',
     headers: token ? { 'Authorization': `Bearer ${token}` } : {},
   })
+}
+
+export async function apiCancelProject(id: string, token?: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/projects/${id}/cancel`, {
+    method: 'POST',
+    headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+  })
+  if (!res.ok) throw new Error(`Cancelamento falhou: ${res.status}`)
 }
 
 // ── Upload ──
@@ -98,9 +108,71 @@ export async function apiUploadImages(
   })
 }
 
+// ── Usuário ──
+
+export interface UserProfile {
+  id: string
+  name: string
+  email: string
+  planId: string
+  projectCredits: number
+  subscriptionStatus: string
+  totalProjectsCreated: number
+}
+
+export async function apiGetMe(token?: string): Promise<UserProfile | null> {
+  if (!token) return null
+  const res = await fetch(`${API_URL}/api/auth/me`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) return null
+  return res.json()
+}
+
+// ── Compartilhamento ──
+
+export async function apiCreateShare(
+  projectId: string,
+  label?: string,
+  token?: string,
+): Promise<{ id: string; token: string; url: string; label: string | null; expiresAt: string | null }> {
+  const res = await fetch(`${API_URL}/api/projects/${projectId}/share`, {
+    method:  'POST',
+    headers: authHeaders(token),
+    body:    JSON.stringify({ label }),
+  })
+  if (!res.ok) throw new Error((await res.json()).error ?? 'Erro ao criar link')
+  return res.json()
+}
+
+export async function apiGetShares(projectId: string, token?: string) {
+  const res = await fetch(`${API_URL}/api/projects/${projectId}/shares`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+  if (!res.ok) return []
+  return res.json()
+}
+
+export async function apiDeleteShare(projectId: string, shareId: string, token?: string) {
+  await fetch(`${API_URL}/api/projects/${projectId}/shares/${shareId}`, {
+    method:  'DELETE',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+}
+
+export async function apiGetShareProject(shareToken: string) {
+  const res = await fetch(`${API_URL}/api/share/token/${shareToken}`)
+  if (!res.ok) return null
+  return res.json() as Promise<{ project: Record<string, unknown>; share: { label: string | null; expiresAt: string | null; viewCount: number } }>
+}
+
+export function apiDownloadUrl(projectId: string, type: string) {
+  return `${API_URL}/api/projects/${projectId}/download/${type}`
+}
+
 // ── Normalização ──
 
-function normalizeProject(raw: Record<string, unknown>): Project {
+export function normalizeProject(raw: Record<string, unknown>): Project {
   return {
     id:          raw.id as string,
     name:        raw.name as string,
@@ -111,8 +183,15 @@ function normalizeProject(raw: Record<string, unknown>): Project {
     downloadUrl: raw.status === 'completed'
       ? `${API_URL}/api/projects/${raw.id}/download`
       : undefined,
-    // tilesUrl vem como path relativo (/api/...) — prefixamos com API_URL do backend
-    tilesUrl: raw.tilesUrl ? `${API_URL}${raw.tilesUrl as string}` : undefined,
+    // tilesUrl/dsmTilesUrl vêm como path relativo (/api/...) — prefixamos com API_URL do backend
+    tilesUrl:        raw.tilesUrl    ? `${API_URL}${raw.tilesUrl    as string}` : undefined,
+    dsmTilesUrl:     raw.dsmTilesUrl ? `${API_URL}${raw.dsmTilesUrl as string}` : undefined,
+    progress:        (raw.progress as number) ?? 0,
+    phase:           (raw.phase as string | null) ?? null,
+    tileBounds:      raw.tileBounds as [[number, number], [number, number]] | undefined,
+    processingInfo:  raw.processingInfo as Project['processingInfo'] ?? null,
+    deliverables:    raw.deliverables as Project['deliverables'] ?? undefined,
+    fileSizes:       raw.fileSizes as Project['fileSizes'] ?? undefined,
   }
 }
 

@@ -8,7 +8,9 @@ import authRouter     from './routes/auth'
 import projectsRouter from './routes/projects'
 import uploadRouter   from './routes/upload'
 import billingRouter  from './routes/billing'
+import shareRouter    from './routes/share'
 import { errorHandler, notFound } from './middleware/error'
+import { startCleanupJob } from './lib/cleanup'
 
 const app  = express()
 const PORT = process.env.PORT ?? 3001
@@ -41,7 +43,9 @@ app.get('/health', (_req, res) => {
 app.use('/api/auth',     authRouter)
 app.use('/api/projects', projectsRouter)
 app.use('/api/projects', uploadRouter)
+app.use('/api/projects', shareRouter)
 app.use('/api/billing',  billingRouter)
+app.use('/api/share',    shareRouter)
 
 // ── Outputs estáticos (tiles do mapa futuramente) ──
 const storagePath = path.resolve(process.env.STORAGE_BASE_PATH ?? './storage')
@@ -55,6 +59,7 @@ app.listen(PORT, () => {
   console.log(`\n  Mapeia.AI API`)
   console.log(`   -> http://localhost:${PORT}`)
   console.log(`   -> health: http://localhost:${PORT}/health\n`)
+  startCleanupJob()
 })
 
 export default app

@@ -1,0 +1,31 @@
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --include=dev
+COPY . .
+RUN npm run build
+RUN npx prisma generate
+
+# ── Runtime ──────────────────────────────────────────────────────────────────
+FROM node:20-alpine
+
+# Docker CLI (para executar ODM — só usado se DOCKER_HOST apontar para socket externo)
+RUN apk add --no-cache docker-cli curl gdal gdal-tools || \
+    apk add --no-cache docker-cli curl
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci --omit=dev
+
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+COPY prisma ./prisma
+COPY --from=builder /app/dist ./dist
+
+RUN mkdir -p /app/storage
+
+EXPOSE 3002
+
+CMD ["node", "dist/workers/index.js"]

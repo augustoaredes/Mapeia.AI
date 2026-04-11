@@ -3,10 +3,16 @@ import IORedis from 'ioredis'
 
 const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379'
 
+function makeRedisOptions() {
+  return {
+    maxRetriesPerRequest: null as null,
+    // TLS obrigatório para Upstash (rediss://)
+    ...(REDIS_URL.startsWith('rediss://') ? { tls: {} } : {}),
+  }
+}
+
 // Conexão compartilhada — BullMQ requer maxRetriesPerRequest: null
-export const redisConnection = new IORedis(REDIS_URL, {
-  maxRetriesPerRequest: null,
-})
+export const redisConnection = new IORedis(REDIS_URL, makeRedisOptions())
 
 export const QUEUE_NAME = 'mapeia-processing'
 
@@ -23,5 +29,5 @@ export const processingQueue = new Queue<{ projectId: string }>(QUEUE_NAME, {
 
 /** Eventos da fila (útil para logging e webhooks futuros) */
 export const queueEvents = new QueueEvents(QUEUE_NAME, {
-  connection: new IORedis(REDIS_URL, { maxRetriesPerRequest: null }),
+  connection: new IORedis(REDIS_URL, makeRedisOptions()),
 })

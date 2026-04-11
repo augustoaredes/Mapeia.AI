@@ -1,196 +1,197 @@
-# Mapeia.AI — Guia de Deploy
+# Deploy Mapeia.AI — Railway + Vercel
 
-## Visão Geral
+## Arquitetura
 
-| Serviço | Plataforma | Custo estimado |
-|---|---|---|
-| Frontend (Next.js) | Vercel | Grátis (Hobby) |
-| Backend (Node.js API) | Railway | ~$5/mês |
-| Worker (BullMQ) | Railway | ~$5/mês |
-| PostgreSQL | Railway | ~$5/mês |
-| Redis | Railway | ~$5/mês |
-
----
-
-## 1. Pré-requisitos
-
-- Conta no [Vercel](https://vercel.com)
-- Conta no [Railway](https://railway.app)
-- Repositório no GitHub com o código do Mapeia.AI
-- (Opcional) Conta no [Stripe](https://stripe.com) para pagamentos
-
----
-
-## 2. Deploy do Backend (Railway)
-
-### 2.1 Criar projeto no Railway
-
-1. Acesse [railway.app](https://railway.app) → **New Project**
-2. Selecione **Deploy from GitHub repo** → escolha `mapeia.ai`
-3. Na tela do projeto, clique em **Add Service** → **Database** → **PostgreSQL**
-4. Clique em **Add Service** → **Database** → **Redis**
-
-### 2.2 Configurar a API
-
-1. Clique no serviço da API → **Settings** → **Source**
-   - Root Directory: `apps/api`
-   - Start Command: `npm run start`
-
-2. Em **Variables**, adicione:
-
-```env
-DATABASE_URL=${{Postgres.DATABASE_URL}}
-REDIS_URL=${{Redis.REDIS_URL}}
-PORT=3001
-FRONTEND_URL=https://seu-app.vercel.app
-STORAGE_BASE_PATH=/app/storage
-
-# Stripe (opcional)
-STRIPE_SECRET_KEY=sk_live_...
-STRIPE_WEBHOOK_SECRET=whsec_...
-STRIPE_PRICE_AVULSO_100=price_...
-STRIPE_PRICE_AVULSO_300=price_...
-STRIPE_PRICE_AVULSO_1000=price_...
-STRIPE_PRICE_STARTER=price_...
-STRIPE_PRICE_PRO=price_...
+```
+Vercel (frontend)  ──▶  Railway API  ──▶  Railway Worker (ou VPS)
+                              │                  │
+                         Supabase DB        Upstash Redis
+                         (já configurado)    (gratuito)
+                              │
+                         Railway Volume
+                         /app/storage
 ```
 
-3. Aguarde o deploy. O Railway executa automaticamente:
-   ```bash
-   npm install
-   npx prisma generate
-   npx prisma migrate deploy
-   npm run build
-   npm run start
-   ```
+---
 
-### 2.3 Configurar o Worker (BullMQ)
+## Passo 1 — Redis no Upstash (gratuito)
 
-1. **Add Service** → **Empty Service**
-2. Source: mesmo repositório, Root Directory: `apps/api`
-3. Start Command: `npm run start:worker`
-4. Adicione as mesmas variáveis de ambiente da API
-
-### 2.4 Storage persistente (importante)
-
-No Railway, o sistema de arquivos é efêmero. Para produção:
-
-**Opção A — Railway Volume (simples)**
-- No serviço da API → **Volumes** → **New Volume**
-- Mount path: `/app/storage`
-
-**Opção B — AWS S3 (recomendado para escala)**
-```env
-STORAGE_DRIVER=s3
-AWS_ACCESS_KEY_ID=...
-AWS_SECRET_ACCESS_KEY=...
-AWS_REGION=sa-east-1
-AWS_S3_BUCKET=mapeia-storage
-```
-> Ative o código S3 em `apps/api/src/lib/storage.ts`
+1. Acesse **upstash.com** → Create Database
+2. Tipo: **Redis** | Região: **São Paulo** | TLS: **On**
+3. Copie a URL no formato: `rediss://:TOKEN@HOST.upstash.io:6379`
 
 ---
 
-## 3. Deploy do Frontend (Vercel)
+## Passo 2 — API no Railway
 
-### 3.1 Conectar repositório
+### Criar serviço
 
-1. Acesse [vercel.com](https://vercel.com) → **Add New Project**
-2. Importe o repositório do GitHub
-3. **Framework Preset:** Next.js
-4. **Root Directory:** `apps/web`
-
-### 3.2 Variáveis de ambiente
-
-Em **Environment Variables**, adicione:
-
-```env
-NEXT_PUBLIC_API_URL=https://sua-api.railway.app
-
-# Stripe (frontend)
-NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_...
-```
-
-### 3.3 Deploy
-
-Clique em **Deploy**. O Vercel detecta Next.js e configura automaticamente.
-
-URL de produção: `https://mapeia-ai.vercel.app` (ou seu domínio customizado)
-
----
-
-## 4. Domínio Customizado (opcional)
-
-### Frontend (Vercel)
-1. Vercel → Project → **Domains** → Add `mapeia.ai`
-2. Configure o DNS: `A 76.76.21.21` ou `CNAME cname.vercel-dns.com`
-
-### Backend (Railway)
-1. Railway → Service → **Settings** → **Networking** → **Generate Domain**
-2. Ou adicione domínio customizado: `api.mapeia.ai`
-
----
-
-## 5. Configurar Stripe (produção)
-
-### 5.1 Criar produtos no Stripe Dashboard
-
-| Produto | Preço | Price ID |
-|---|---|---|
-| Avulso — até 100 fotos | R$ 29 (único) | `price_avulso_100` |
-| Avulso — até 300 fotos | R$ 59 (único) | `price_avulso_300` |
-| Avulso — até 1.000 fotos | R$ 99 (único) | `price_avulso_1000` |
-| Starter Mensal | R$ 97/mês | `price_starter` |
-| Pro Mensal | R$ 197/mês | `price_pro` |
-
-### 5.2 Configurar Webhook
-
-1. Stripe Dashboard → **Developers** → **Webhooks** → **Add Endpoint**
-2. URL: `https://sua-api.railway.app/api/billing/webhook`
-3. Eventos: `checkout.session.completed`, `customer.subscription.deleted`
-4. Copie o **Signing Secret** → adicione como `STRIPE_WEBHOOK_SECRET`
-
----
-
-## 6. Checklist de Produção
-
-- [ ] HTTPS ativo em todos os serviços (Railway e Vercel fazem isso automaticamente)
-- [ ] `DATABASE_URL` apontando para PostgreSQL cloud
-- [ ] Migrations rodaram (`prisma migrate deploy`)
-- [ ] Worker rodando em processo separado
-- [ ] Volume ou S3 configurado para storage persistente
-- [ ] `FRONTEND_URL` no backend apontando para o domínio correto (CORS)
-- [ ] Webhook do Stripe configurado e testado
-- [ ] Variável `STRIPE_WEBHOOK_SECRET` configurada
-- [ ] PWA testada: manifest, ícones e service worker funcionando em HTTPS
-- [ ] `/health` respondendo 200 OK
-
----
-
-## 7. Monitoramento (recomendado)
-
-| Ferramenta | O que monitora | Grátis? |
-|---|---|---|
-| Railway Metrics | CPU, memória, requests | Sim |
-| Vercel Analytics | Core Web Vitals, visitas | Sim (básico) |
-| UptimeRobot | Disponibilidade da API | Sim |
-| Sentry | Erros em produção | Sim (5k eventos/mês) |
-
-### Sentry (opcional)
 ```bash
-cd apps/api && npm install @sentry/node
-cd apps/web && npm install @sentry/nextjs
+npm install -g @railway/cli
+railway login
+cd /caminho/para/Mapeia.AI
+railway init                          # cria projeto
+railway service create --name api
+```
+
+### Settings no Dashboard → api → Settings
+- **Dockerfile Path**: `apps/api/Dockerfile`
+- **Watch Paths**: `apps/api/**`
+
+### Volume persistente
+
+```
+Railway Dashboard → api → Volumes → Add Volume
+  Mount Path: /app/storage
+  Size: 50 GB
+```
+
+### Variáveis de ambiente (api)
+
+```
+DATABASE_URL           = [Supabase connection string]
+JWT_SECRET             = [openssl rand -hex 32]
+NODE_ENV               = production
+PORT                   = 3001
+FRONTEND_URL           = https://mapeia.ai
+API_URL                = https://api.mapeia.ai
+REDIS_URL              = [Upstash rediss://...]
+STORAGE_BASE_PATH      = /app/storage
+RESEND_API_KEY         = re_xxxx
+RESEND_FROM            = Mapeia.AI <no-reply@mapeia.ai>
+STRIPE_SECRET_KEY      = sk_live_xxxx
+STRIPE_WEBHOOK_SECRET  = whsec_xxxx
+STRIPE_PRICE_AVULSO_150   = price_xxxx
+STRIPE_PRICE_AVULSO_400   = price_xxxx
+STRIPE_PRICE_AVULSO_1200  = price_xxxx
+STRIPE_PRICE_STARTER      = price_xxxx
+STRIPE_PRICE_PRO          = price_xxxx
+STRIPE_PRICE_BUSINESS     = price_xxxx
+```
+
+### Domínio customizado
+```
+Railway → api → Settings → Domains → Custom Domain
+→ api.mapeia.ai → CNAME apontando para domínio Railway
 ```
 
 ---
 
-## 8. Escalabilidade
+## Passo 3 — Worker de processamento
 
-Quando o volume crescer:
+O worker executa o OpenDroneMap. Precisa de Docker.
 
-| Quando | Ação |
-|---|---|
-| > 100 projetos/dia | Migrar storage para S3 |
-| > 500 projetos/dia | Aumentar concorrência do worker (BullMQ) |
-| > 1.000 usuários | Adicionar autenticação (NextAuth.js ou Clerk) |
-| > 5.000 projetos/mês | CDN para tiles do mapa (CloudFront) |
+### Opção A — Railway (sem ODM real, modo simulado)
+
+```bash
+railway service create --name worker
+```
+
+Settings:
+- **Dockerfile Path**: `apps/api/Dockerfile.worker`
+- **Volume**: monte o MESMO volume `/app/storage`
+- Mesmas variáveis da API
+
+Neste modo o worker processa em simulação (sem Docker-in-Docker).
+
+### Opção B — VPS com Docker (produção real) ← recomendado
+
+Use **Hetzner CX32** (4 vCPU, 8 GB RAM, €7/mês) ou DigitalOcean 8 GB ($48/mês).
+
+```bash
+# No VPS
+apt update && apt install -y docker.io nodejs npm git
+git clone https://github.com/SEU_USUARIO/mapeia.git
+cd mapeia/apps/api
+
+cp .env.example .env
+# Edite .env com as variáveis de produção
+# STORAGE_BASE_PATH=/mnt/storage (monte volume compartilhado com Railway via NFS ou S3)
+
+npm install && npm run build && npx prisma generate
+
+npm install -g pm2
+pm2 start dist/workers/index.js --name mapeia-worker
+pm2 startup && pm2 save
+```
+
+> Para compartilhar o storage entre Railway e VPS, use **Cloudflare R2**
+> ou **DigitalOcean Spaces** — adapte `storage.ts` para usar o SDK do S3.
+
+---
+
+## Passo 4 — Frontend no Vercel
+
+```bash
+npm install -g vercel
+cd apps/web
+vercel --prod
+```
+
+Ou conecte via Vercel Dashboard → New Project → Import Git Repository.
+
+### Variáveis no Vercel
+
+```
+NEXT_PUBLIC_API_URL = https://api.mapeia.ai
+NEXTAUTH_URL        = https://mapeia.ai
+NEXTAUTH_SECRET     = [openssl rand -hex 32]
+```
+
+### Domínio
+```
+Vercel → Project → Settings → Domains → Add → mapeia.ai
+→ Siga instruções de DNS
+```
+
+---
+
+## Passo 5 — Stripe Webhook
+
+1. Stripe Dashboard → Developers → Webhooks → Add endpoint
+2. **URL**: `https://api.mapeia.ai/api/billing/webhook`
+3. **Eventos**:
+   - `checkout.session.completed`
+   - `customer.subscription.updated`
+   - `customer.subscription.deleted`
+4. Copie o **Signing Secret** → `STRIPE_WEBHOOK_SECRET`
+
+---
+
+## Passo 6 — Resend (e-mails)
+
+1. resend.com → Domains → Add → `mapeia.ai`
+2. Adicione os registros DNS (MX, SPF, DKIM)
+3. resend.com → API Keys → Create → `RESEND_API_KEY`
+
+---
+
+## Checklist antes de ir ao ar
+
+- [ ] `JWT_SECRET` e `NEXTAUTH_SECRET` gerados (`openssl rand -hex 32`)
+- [ ] `REDIS_URL` Upstash configurado e testado
+- [ ] Railway Volume `/app/storage` montado
+- [ ] Worker rodando e consumindo a fila
+- [ ] `RESEND_API_KEY` configurado + domínio verificado no Resend
+- [ ] Stripe produtos criados + todos os `STRIPE_PRICE_*` preenchidos
+- [ ] Webhook do Stripe apontando para a API
+- [ ] `FRONTEND_URL` e `API_URL` com domínios reais
+- [ ] `NODE_ENV=production` nos dois serviços
+- [ ] Testar fluxo completo: cadastro → e-mail → login → upload → processar → download
+
+---
+
+## Logs e troubleshooting
+
+```bash
+# Logs em tempo real
+railway logs --service api --tail
+railway logs --service worker --tail
+
+# Redeploy
+railway up --service api
+
+# Banco via Prisma Studio (local apontando para prod)
+cd apps/api
+DATABASE_URL="postgresql://..." npx prisma studio
+```

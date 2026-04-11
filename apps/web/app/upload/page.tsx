@@ -1,12 +1,12 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import {
-  UploadCloud, X, ImageIcon, ArrowRight, Loader2, ChevronLeft, Check,
+  UploadCloud, X, ImageIcon, ArrowRight, Loader2, ChevronLeft, Check, Thermometer,
 } from 'lucide-react'
 import { isApiAvailable, apiCreateProject, apiUploadImages, FreeTierError } from '@/lib/api'
 import { createProject, simulateProcessing } from '@/lib/store'
@@ -18,13 +18,28 @@ type Step = 'idle' | 'uploading' | 'done'
 
 export default function UploadPage() {
   const router = useRouter()
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
   const [files, setFiles]             = useState<File[]>([])
   const [projectName, setProjectName] = useState('')
   const [step, setStep]               = useState<Step>('idle')
   const [progress, setProgress]       = useState(0)
   const [agreed, setAgreed]           = useState(false)
   const [error, setError]             = useState<string | null>(null)
+
+  // Redireciona para cadastro se não autenticado
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.replace('/register?redirect=/upload')
+    }
+  }, [status, router])
+
+  if (status === 'loading' || status === 'unauthenticated') {
+    return (
+      <main className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <Loader2 className="w-6 h-6 text-slate-600 animate-spin" />
+      </main>
+    )
+  }
 
   const onDrop = useCallback((accepted: File[]) => {
     setFiles((prev) => [...prev, ...accepted].slice(0, MAX_FILES))
@@ -139,6 +154,10 @@ export default function UploadPage() {
               <p className="font-semibold text-slate-200 mb-1 text-lg">Arraste e solte as fotos</p>
               <p className="text-sm text-slate-500">ou <span className="text-brand underline cursor-pointer">clique para selecionar</span></p>
               <p className="text-xs text-slate-600 mt-3">JPG ou PNG · mínimo 3 fotos · máximo {MAX_FILES}</p>
+              <p className="text-xs text-slate-700 mt-1.5 flex items-center justify-center gap-1">
+                <Thermometer className="w-3 h-3 text-orange-600" />
+                Câmeras térmicas FLIR e DJI são detectadas automaticamente
+              </p>
             </>
           )}
         </div>
@@ -231,7 +250,7 @@ export default function UploadPage() {
 
         {!isSubmitting && (
           <p className="text-center text-xs text-slate-600 mt-4">
-            Primeiros 3 projetos gratuitos · sem cartão de crédito
+            1 projeto gratuito · sem cartão de crédito
           </p>
         )}
       </div>

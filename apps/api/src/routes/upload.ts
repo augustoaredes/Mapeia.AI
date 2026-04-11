@@ -5,6 +5,7 @@ import { prisma } from '../lib/prisma'
 import { storage } from '../lib/storage'
 import { processingQueue } from '../lib/queue'
 import { requireAuth, AuthRequest } from '../middleware/requireAuth'
+import { getPlanConfig } from '../lib/plans'
 
 const router = Router()
 router.use(requireAuth)
@@ -51,6 +52,23 @@ router.post(
       const files = req.files as Express.Multer.File[]
       if (!files?.length) {
         res.status(400).json({ error: 'Nenhuma imagem enviada' })
+        return
+      }
+
+      // Verifica limite de imagens do plano
+      const user = await prisma.user.findUnique({
+        where:  { id: (req as AuthRequest).userId },
+        select: { planId: true },
+      })
+      const planConfig = getPlanConfig(user?.planId ?? 'free')
+      if (planConfig.imageLimit > 0 && files.length > planConfig.imageLimit) {
+        res.status(402).json({
+          error:   `Seu plano permite até ${planConfig.imageLimit} imagens por projeto`,
+          code:    'IMAGE_LIMIT_EXCEEDED',
+          limit:   planConfig.imageLimit,
+          sent:    files.length,
+          upgrade: '/upgrade',
+        })
         return
       }
 

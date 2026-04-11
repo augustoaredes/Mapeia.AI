@@ -8,29 +8,55 @@ datasource db {
 }
 
 model User {
-  id        String    @id @default(uuid())
-  email     String    @unique
-  name      String
-  password  String
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt     @map("updated_at")
-  projects  Project[]
+  id                   String    @id @default(uuid())
+  email                String    @unique
+  name                 String
+  password             String
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+  totalProjectsCreated Int       @default(0) @map("total_projects_created")
+  subscriptionStatus   String    @default("free") @map("subscription_status")
+  planId               String    @default("free") @map("plan_id")
+  projectCredits       Int       @default(0) @map("project_credits")
+  stripeCustomerId     String?   @map("stripe_customer_id")
+  emailVerified        Boolean   @default(false) @map("email_verified")
+  verifyToken          String?   @unique @map("verify_token")
+  verifyTokenExpiresAt DateTime? @map("verify_token_expires_at")
+  registrationIp       String?   @map("registration_ip")
+  projects             Project[]
 
   @@map("users")
 }
 
 model Project {
-  id         String   @id @default(uuid())
+  id         String    @id @default(uuid())
   name       String
-  status     Status   @default(pending)
-  imageCount Int      @default(0) @map("image_count")
-  userId     String   @map("user_id")
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt     @map("updated_at")
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status     Status    @default(pending)
+  imageCount Int       @default(0) @map("image_count")
+  userId     String    @map("user_id")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+  expiresAt  DateTime? @map("expires_at")
+  phase      String?
+  progress   Int       @default(0)
   images     Image[]
+  shares     ProjectShare[]
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("projects")
+}
+
+model ProjectShare {
+  id        String    @id @default(uuid())
+  projectId String    @map("project_id")
+  token     String    @unique @default(uuid())
+  label     String?
+  expiresAt DateTime? @map("expires_at")
+  viewCount Int       @default(0) @map("view_count")
+  createdAt DateTime  @default(now()) @map("created_at")
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("project_shares")
 }
 
 model Image {
@@ -51,4 +77,5 @@ enum Status {
   processing
   completed
   failed
+  cancelled
 }

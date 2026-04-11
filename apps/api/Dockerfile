@@ -1,0 +1,35 @@
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --include=dev
+COPY . .
+RUN npm run build
+RUN npx prisma generate
+
+# ── Runtime ──────────────────────────────────────────────────────────────────
+FROM node:20-alpine
+
+# Docker CLI (para executar ODM)
+RUN apk add --no-cache docker-cli curl
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci --omit=dev
+
+# Prisma client + schema
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+COPY prisma ./prisma
+
+# Build compilado
+COPY --from=builder /app/dist ./dist
+
+# Storage de uploads/outputs (volume externo em prod)
+RUN mkdir -p /app/storage
+
+EXPOSE 3001
+
+# Roda migração e inicia servidor
+CMD ["sh", "-c", "npx prisma db push --skip-generate && node dist/index.js"]

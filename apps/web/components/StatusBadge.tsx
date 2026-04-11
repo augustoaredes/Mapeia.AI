@@ -6,6 +6,7 @@ const config: Record<ProjectStatus, { label: string; dot: string; className: str
   processing: { label: 'Processando...', dot: 'bg-yellow-400', className: 'bg-yellow-500/10 text-yellow-300 border-yellow-500/20' },
   completed:  { label: 'Concluído',       dot: 'bg-brand',      className: 'bg-brand/10 text-brand border-brand/20' },
   failed:     { label: 'Falhou',          dot: 'bg-red-400',    className: 'bg-red-500/10 text-red-300 border-red-500/20' },
+  cancelled:  { label: 'Cancelado',       dot: 'bg-slate-500',  className: 'bg-slate-700/50 text-slate-400 border-slate-600' },
 }
 
 export default function StatusBadge({ status }: { status: ProjectStatus }) {

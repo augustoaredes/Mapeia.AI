@@ -66,7 +66,7 @@ export default function Home() {
           </div>
 
           <p className="text-xs text-slate-600 mt-5">
-            Primeiros 3 projetos gratuitos · sem cartão de crédito
+            1 projeto gratuito · sem cartão de crédito
           </p>
 
           {/* Preview mockup */}
@@ -173,70 +173,116 @@ export default function Home() {
 
       {/* ── Preço ── */}
       <section id="preco" className="py-24 px-4 bg-slate-900">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-16">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-5">
             <h2 className="text-3xl sm:text-4xl font-bold text-slate-50 mb-3">Preços simples e justos</h2>
-            <p className="text-slate-400">Pague pelo que usar ou assine e economize.</p>
+            <p className="text-slate-400 max-w-xl mx-auto">
+              Um levantamento tradicional custa{' '}
+              <span className="text-slate-200 font-semibold">R$ 2.000–8.000 por projeto</span>.
+              Com o Mapeia.AI você entrega o mesmo resultado e fica com a margem.
+            </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-            {/* Avulso */}
-            <div className="glass rounded-2xl p-8 border border-slate-700/60">
-              <h3 className="font-bold text-slate-100 text-xl mb-1">Avulso</h3>
-              <p className="text-slate-500 text-sm mb-7">Sem compromisso. Pague por projeto.</p>
-              <div className="space-y-3 mb-8">
-                {[
-                  { fotos: 'Até 100 fotos',   preco: 'R$ 29' },
-                  { fotos: 'Até 300 fotos',   preco: 'R$ 59' },
-                  { fotos: 'Até 1.000 fotos', preco: 'R$ 99' },
-                ].map(({ fotos, preco }) => (
-                  <div key={fotos} className="flex justify-between items-center py-3 border-b border-slate-800">
-                    <span className="text-slate-300 text-sm">{fotos}</span>
-                    <span className="font-bold text-slate-100">{preco}</span>
-                  </div>
-                ))}
-              </div>
-              <Link
-                href="/upload"
-                className="w-full flex items-center justify-center border border-brand text-brand font-semibold py-3 rounded-xl hover:bg-brand/10 transition-colors cursor-pointer"
+          {/* Planos mensais */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6 mt-10">
+            {[
+              {
+                label: 'Business',
+                price: 'R$ 547',
+                desc:  'Empresas e equipes',
+                items: ['Até 3.000 fotos / projeto (≈ 500 ha)', 'Projetos ilimitados', 'Fila de alta prioridade'],
+                featured: false,
+                href: '/upgrade',
+              },
+              {
+                label: 'Pro',
+                price: 'R$ 297',
+                desc:  'Profissionais',
+                items: ['Até 1.000 fotos / projeto (≈ 165 ha)', 'Projetos ilimitados', 'Fila prioritária'],
+                featured: true,
+                href: '/upgrade',
+              },
+              {
+                label: 'Starter',
+                price: 'R$ 149',
+                desc:  'Pilotos autônomos',
+                items: ['Até 500 fotos / projeto (≈ 83 ha)', 'Projetos ilimitados', 'Suporte por e-mail'],
+                featured: false,
+                href: '/upgrade',
+              },
+            ].map(({ label, price, desc, items, featured, href }) => (
+              <div
+                key={label}
+                className={`relative rounded-2xl p-6 border flex flex-col
+                  ${featured
+                    ? 'bg-gradient-to-b from-slate-800 to-slate-900 border-brand/50 shadow-glow'
+                    : 'glass border-slate-700/60'}`}
               >
-                Começar agora
-              </Link>
-            </div>
+                {featured && (
+                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-brand text-slate-900 text-xs font-bold px-3 py-1 rounded-full">
+                    MAIS POPULAR
+                  </span>
+                )}
+                <div className="mb-3">
+                  <span className="text-3xl font-black text-slate-50">{price}</span>
+                  <span className="text-sm text-slate-500 ml-1">/mês</span>
+                </div>
+                <p className="font-bold text-slate-200 mb-1">{label}</p>
+                <p className="text-slate-500 text-xs mb-4">{desc}</p>
+                <ul className="space-y-2 flex-1 mb-5">
+                  {items.map((item) => (
+                    <li key={item} className="flex items-start gap-2 text-xs text-slate-400">
+                      <Check className="w-3 h-3 text-brand flex-shrink-0 mt-0.5" /> {item}
+                    </li>
+                  ))}
+                </ul>
+                <Link
+                  href={href}
+                  className={`w-full flex items-center justify-center text-sm font-semibold py-2.5 rounded-xl transition-colors cursor-pointer
+                    ${featured
+                      ? 'bg-brand text-slate-900 hover:bg-green-400'
+                      : 'border border-slate-600 text-slate-300 hover:border-brand hover:text-brand'}`}
+                >
+                  Assinar {label}
+                </Link>
+              </div>
+            ))}
+          </div>
 
-            {/* Mensal */}
-            <div className="relative rounded-2xl p-8 bg-gradient-to-b from-slate-800 to-slate-900 border border-brand/40 shadow-glow">
-              <span className="absolute -top-3 left-6 bg-brand text-slate-900 text-xs font-bold px-3 py-1 rounded-full">
-                MAIS POPULAR
-              </span>
-              <h3 className="font-bold text-slate-100 text-xl mb-1">Mensal</h3>
-              <p className="text-slate-500 text-sm mb-7">Para quem usa com frequência.</p>
-              <div className="space-y-4 mb-8">
-                {[
-                  { nome: 'Starter', preco: 'R$ 97', desc: '5 processamentos/mês' },
-                  { nome: 'Pro',     preco: 'R$ 197', desc: 'Ilimitado (uso justo)' },
-                ].map(({ nome, preco, desc }) => (
-                  <div key={nome} className="bg-slate-900/60 rounded-xl p-4">
-                    <div className="flex justify-between items-center">
-                      <span className="font-semibold text-slate-200">{nome}</span>
-                      <span className="font-black text-2xl text-slate-100">{preco}<span className="text-sm font-normal text-slate-500">/mês</span></span>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-1">{desc}</p>
+          {/* Pay-per-use */}
+          <div className="glass rounded-2xl border border-slate-700/60 p-6">
+            <p className="text-sm font-semibold text-slate-400 mb-4">Ou pague por projeto — sem assinatura</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {[
+                { fotos: 'Até 150 fotos', ha: '≈ 25 ha', preco: 'R$ 59' },
+                { fotos: 'Até 400 fotos', ha: '≈ 67 ha', preco: 'R$ 99',  popular: true },
+                { fotos: 'Até 1.200 fotos', ha: '≈ 200 ha', preco: 'R$ 189' },
+              ].map(({ fotos, ha, preco, popular }) => (
+                <div key={fotos} className={`relative flex items-center justify-between px-4 py-3 rounded-xl border ${popular ? 'border-brand/30 bg-brand/5' : 'border-slate-800'}`}>
+                  {popular && (
+                    <span className="absolute -top-2 left-3 text-[10px] font-bold text-brand bg-slate-950 px-1.5">MAIS PEDIDO</span>
+                  )}
+                  <div>
+                    <p className="text-slate-200 text-sm font-medium">{fotos}</p>
+                    <p className="text-slate-600 text-xs">{ha}</p>
                   </div>
-                ))}
-              </div>
-              <Link
-                href="/upload"
-                className="w-full flex items-center justify-center gap-2 bg-brand text-slate-900 font-bold py-3 rounded-xl hover:bg-green-400 transition-colors cursor-pointer"
-              >
-                Testar 3 projetos grátis <ArrowRight className="w-4 h-4" />
-              </Link>
+                  <div className="text-right">
+                    <p className="text-slate-100 font-black text-lg">{preco}</p>
+                    <Link href="/upload" className="text-brand text-xs hover:underline cursor-pointer">Comprar →</Link>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 
           {/* Checklist */}
           <div className="mt-8 flex flex-wrap justify-center gap-x-8 gap-y-2">
-            {['Sem fidelidade', 'Cancele quando quiser', 'Download incluso', 'Suporte por e-mail'].map((item) => (
+            {[
+              'Sem fidelidade',
+              'Cancele quando quiser',
+              'Download incluso',
+              'Crédito devolvido se falhar',
+            ].map((item) => (
               <span key={item} className="flex items-center gap-1.5 text-sm text-slate-500">
                 <Check className="w-3.5 h-3.5 text-brand" /> {item}
               </span>
@@ -253,7 +299,7 @@ export default function Home() {
             Pronto para criar<br />seu primeiro mapa?
           </h2>
           <p className="text-slate-400 text-lg mb-10">
-            Primeiros 3 projetos gratuitos.<br />Sem cartão de crédito.
+            1 projeto gratuito.<br />Sem cartão de crédito.
           </p>
           <Link
             href="/upload"

@@ -25,6 +25,8 @@ export function createProject(name: string, imageCount: number): Project {
     name,
     status: 'pending',
     imageCount,
+    progress: 0,
+    phase: null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   }
