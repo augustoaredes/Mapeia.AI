@@ -10,8 +10,8 @@ RUN npx prisma generate
 # ── Runtime ──────────────────────────────────────────────────────────────────
 FROM node:20-alpine
 
-# Docker CLI (para executar ODM)
-RUN apk add --no-cache docker-cli curl
+# Docker CLI + OpenSSL (necessário para Prisma)
+RUN apk add --no-cache docker-cli curl openssl
 
 WORKDIR /app
 
