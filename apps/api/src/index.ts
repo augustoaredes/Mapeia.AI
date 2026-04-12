@@ -15,11 +15,22 @@ import { startCleanupJob } from './lib/cleanup'
 const app  = express()
 const PORT = process.env.PORT ?? 3001
 const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:3000'
+const ALLOWED_ORIGINS = [
+  FRONTEND_URL,
+  'https://mapeia-ai.vercel.app',
+  'http://localhost:3000',
+]
 
 // ── Segurança ──
 app.use(helmet())
 app.use(cors({
-  origin:       FRONTEND_URL,
+  origin: (origin, cb) => {
+    if (!origin || ALLOWED_ORIGINS.some(o => origin.startsWith(o))) {
+      cb(null, true)
+    } else {
+      cb(new Error(`CORS: origin not allowed: ${origin}`))
+    }
+  },
   methods:      ['GET', 'POST', 'PATCH', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }))
