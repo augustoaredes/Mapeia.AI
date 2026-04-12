@@ -1,13 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Loader2, CheckCircle2, AlertCircle, XCircle } from 'lucide-react'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? ''
 
-export default function VerifyPage() {
+function VerifyPage() {
   const searchParams = useSearchParams()
   const token = searchParams.get('token')
 
@@ -100,3 +100,5 @@ export default function VerifyPage() {
     </main>
   )
 }
+
+export default function VerifyPageWrapper() { return <Suspense><VerifyPage /></Suspense> }

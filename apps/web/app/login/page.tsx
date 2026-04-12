@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import { signIn } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
@@ -8,7 +8,7 @@ import { Loader2, Mail, Lock, AlertCircle, CheckCircle2, RefreshCw } from 'lucid
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? ''
 
-export default function LoginPage() {
+function LoginPage() {
   const router       = useRouter()
   const searchParams = useSearchParams()
   const callbackUrl  = searchParams.get('redirect') ?? searchParams.get('callbackUrl') ?? '/dashboard'
@@ -186,3 +186,5 @@ export default function LoginPage() {
     </main>
   )
 }
+
+export default function LoginPageWrapper() { return <Suspense><LoginPage /></Suspense> }

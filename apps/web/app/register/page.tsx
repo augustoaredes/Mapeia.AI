@@ -1,13 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Loader2, Mail, Lock, User, AlertCircle, Check, MailCheck, RefreshCw } from 'lucide-react'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? ''
 
-export default function RegisterPage() {
+function RegisterPage() {
   const router       = useRouter()
   const searchParams = useSearchParams()
   const redirect     = searchParams.get('redirect') ?? '/dashboard'
@@ -263,3 +263,5 @@ export default function RegisterPage() {
     </main>
   )
 }
+
+export default function RegisterPageWrapper() { return <Suspense><RegisterPage /></Suspense> }

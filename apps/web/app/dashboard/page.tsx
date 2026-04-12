@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, Suspense } from 'react'
 import Link from 'next/link'
 import {
   Plus, Map, LogOut, CheckCircle2, Loader2, AlertCircle,
@@ -25,7 +25,7 @@ const PLAN_LABELS: Record<string, string> = {
   business:     'Business',
 }
 
-export default function DashboardPage() {
+function DashboardPage() {
   const { data: session } = useSession()
   const searchParams  = useSearchParams()
   const cancelledName = searchParams.get('cancelled')
@@ -326,3 +326,5 @@ function StatBadge({
     </div>
   )
 }
+
+export default function DashboardPageWrapper() { return <Suspense><DashboardPage /></Suspense> }
