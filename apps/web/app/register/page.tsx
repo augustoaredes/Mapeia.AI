@@ -15,9 +15,10 @@ function RegisterPage() {
   const [name,     setName]     = useState('')
   const [email,    setEmail]    = useState('')
   const [password, setPassword] = useState('')
+  const [confirm,  setConfirm]  = useState('')
   const [loading,  setLoading]  = useState(false)
   const [error,    setError]    = useState<string | null>(null)
-  const [done,     setDone]     = useState(false)  // mostra tela "verifique seu e-mail"
+  const [done,     setDone]     = useState(false)
   const [resending, setResending] = useState(false)
   const [resendSent, setResendSent] = useState(false)
 
@@ -35,6 +36,11 @@ function RegisterPage() {
 
     if (!passwordStrong) {
       setError('A senha deve ter pelo menos 8 caracteres.')
+      return
+    }
+
+    if (password !== confirm) {
+      setError('As senhas não coincidem.')
       return
     }
 
@@ -153,7 +159,7 @@ function RegisterPage() {
                   onChange={(e) => setName(e.target.value)}
                   required
                   autoComplete="name"
-                  placeholder="Seu nome"
+                  placeholder="Nome e sobrenome"
                   disabled={loading}
                   className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-10 pr-4 py-3 text-slate-100
                     placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-brand/50 focus:border-brand/60
@@ -222,9 +228,34 @@ function RegisterPage() {
               )}
             </div>
 
+            <div>
+              <label className="block text-sm font-semibold text-slate-300 mb-2">Confirmar senha</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600 pointer-events-none" />
+                <input
+                  type="password"
+                  value={confirm}
+                  onChange={(e) => setConfirm(e.target.value)}
+                  required
+                  autoComplete="new-password"
+                  placeholder="Repita a senha"
+                  disabled={loading}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-10 pr-4 py-3 text-slate-100
+                    placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-brand/50 focus:border-brand/60
+                    transition-all disabled:opacity-50"
+                />
+              </div>
+              {confirm.length > 0 && password !== confirm && (
+                <p className="text-xs text-red-400 mt-1.5">As senhas não coincidem.</p>
+              )}
+              {confirm.length > 0 && password === confirm && (
+                <p className="text-xs text-brand mt-1.5 flex items-center gap-1"><Check className="w-3 h-3" /> Senhas conferem</p>
+              )}
+            </div>
+
             <button
               type="submit"
-              disabled={loading || !name || !email || !passwordStrong}
+              disabled={loading || !name || !email || !passwordStrong || password !== confirm}
               className="w-full flex items-center justify-center gap-2 bg-brand text-slate-900 font-bold
                 py-3.5 rounded-xl hover:bg-green-400 transition-all disabled:opacity-40
                 disabled:cursor-not-allowed cursor-pointer mt-2"
