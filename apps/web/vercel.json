@@ -12,8 +12,5 @@
         { "key": "Service-Worker-Allowed", "value": "/" }
       ]
     }
-  ],
-  "env": {
-    "NEXT_PUBLIC_API_URL": "@api-url"
-  }
+  ]
 }
