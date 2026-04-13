@@ -38,8 +38,7 @@ function LoginPage() {
     setLoading(false)
 
     if (res?.ok) {
-      router.push(callbackUrl)
-      router.refresh()
+      window.location.href = callbackUrl
       return
     }
 
