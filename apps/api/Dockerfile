@@ -1,5 +1,7 @@
 FROM node:20-alpine AS builder
 
+RUN apk add --no-cache openssl
+
 WORKDIR /app
 COPY apps/api/package*.json ./
 RUN npm ci --include=dev
