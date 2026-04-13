@@ -31,7 +31,9 @@ COPY --from=builder /app/dist ./dist
 # Storage de uploads/outputs (volume externo em prod)
 RUN mkdir -p /app/storage
 
+COPY apps/api/start.sh ./start.sh
+RUN chmod +x ./start.sh
+
 EXPOSE 3001
 
-# Roda worker ou servidor conforme a variável WORKER_MODE
-CMD ["sh", "-c", "if [ \"$WORKER_MODE\" = \"true\" ]; then node dist/workers/index.js; else npx prisma db push --skip-generate && node dist/index.js; fi"]
+CMD ["sh", "start.sh"]
