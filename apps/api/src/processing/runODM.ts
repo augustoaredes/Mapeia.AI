@@ -7,6 +7,7 @@ import { storage } from '../lib/storage'
 import { detectThermal, ThermalDetectionResult } from '../lib/detectThermal'
 import { sendProcessingComplete } from '../lib/email'
 import { parseLASPreview } from '../lib/lasParser'
+import { r2Enabled, r2DownloadDir, r2UploadDir, r2UploadBuffer } from '../lib/r2'
 
 const execFileAsync = promisify(execFile)
 
@@ -30,6 +31,15 @@ export async function runODM(projectId: string): Promise<void> {
   try {
     const inputDir  = storage.uploadsDir(projectId)
     const outputDir = storage.ensureOutputsDir(projectId)
+
+    // Se R2 está ativo, sincroniza as imagens do R2 para o disco local
+    if (r2Enabled) {
+      await setProgress(projectId, 1, 'Baixando imagens...')
+      console.log(`[ODM] Baixando imagens do R2 para ${inputDir}...`)
+      fs.mkdirSync(inputDir, { recursive: true })
+      await r2DownloadDir(`uploads/${projectId}`, inputDir)
+      console.log(`[ODM] Download do R2 concluído`)
+    }
 
     const images = fs.existsSync(inputDir)
       ? fs.readdirSync(inputDir).filter((f) => /\.(jpg|jpeg|png)$/i.test(f))
@@ -56,6 +66,14 @@ export async function runODM(projectId: string): Promise<void> {
     } else {
       console.log('[ODM] Docker não disponível — usando processamento simulado')
       await simulateODMProcessing(projectId, outputDir, images.length, thermal)
+    }
+
+    // Se R2 está ativo, faz upload dos resultados para o R2
+    if (r2Enabled) {
+      await setProgress(projectId, 98, 'Enviando resultados...')
+      console.log(`[ODM] Fazendo upload dos outputs para R2...`)
+      await r2UploadDir(outputDir, `outputs/${projectId}`)
+      console.log(`[ODM] Upload de resultados concluído`)
     }
 
     const completedProject = await prisma.project.update({

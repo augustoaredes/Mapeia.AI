@@ -6,6 +6,7 @@ import { storage } from '../lib/storage'
 import { processingQueue } from '../lib/queue'
 import { requireAuth, AuthRequest } from '../middleware/requireAuth'
 import { getPlanConfig } from '../lib/plans'
+import { r2Enabled, r2Upload } from '../lib/r2'
 
 const router = Router()
 router.use(requireAuth)
@@ -72,12 +73,21 @@ router.post(
         return
       }
 
+      // Se R2 está configurado, faz upload dos arquivos para o R2
+      if (r2Enabled) {
+        console.log(`[Upload] Enviando ${files.length} imagens para R2...`)
+        await Promise.all(files.map(f =>
+          r2Upload(f.path, `uploads/${project.id}/${f.filename}`)
+        ))
+        console.log(`[Upload] R2 upload concluído para projeto ${project.id}`)
+      }
+
       // Persiste as imagens no banco
       await prisma.image.createMany({
         data: files.map((f) => ({
           projectId: project.id,
           filename:  f.originalname,
-          path:      f.path,
+          path:      r2Enabled ? `r2:uploads/${project.id}/${f.filename}` : f.path,
           size:      f.size,
         })),
       })
@@ -93,13 +103,13 @@ router.post(
       const job = await processingQueue.add(
         'process',
         { projectId: project.id },
-        { jobId: project.id } // idempotente: evita duplicatas
+        { jobId: project.id }
       )
 
       console.log(`[Upload] Job ${job.id} adicionado à fila para projeto ${project.id}`)
 
       res.status(201).json({
-        project: updated,
+        project:  updated,
         uploaded: files.length,
         total:    imageCount,
         jobId:    job.id,
